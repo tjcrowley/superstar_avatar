@@ -113,10 +113,13 @@ class AppConstants {
   static const String polygonChainId = '137';
   static const String polygonExplorerUrl = 'https://polygonscan.com';
   
-  // Smart Contract Addresses (to be deployed)
-  static const String powerVerificationContractAddress = '0x...';
-  static const String houseMembershipContractAddress = '0x...';
-  static const String activityScriptContractAddress = '0x...';
+  // Smart Contract Addresses (to be updated after deployment)
+  // For development/testing, use these placeholder addresses
+  // After deployment, replace with actual contract addresses
+  static const String powerVerificationContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String houseMembershipContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String activityScriptsContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String superstarAvatarRegistryContractAddress = '0x0000000000000000000000000000000000000000';
 
   // Storage Keys
   static const String userPreferencesKey = 'user_preferences';
