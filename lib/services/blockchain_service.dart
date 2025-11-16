@@ -810,6 +810,122 @@ class BlockchainService {
     return hash.toString().substring(0, 16);
   }
 
+  // Event Producer Methods
+  Future<String> registerEventProducer({
+    required String producerId,
+    required String avatarId,
+    required String name,
+    required String description,
+    String metadata = "",
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      // Note: This would require adding EventProducer contract ABI
+      // For now, this is a placeholder that shows the structure
+      throw Exception('EventProducer contract integration pending');
+    } catch (e) {
+      throw Exception('Failed to register event producer: $e');
+    }
+  }
+
+  Future<String> linkStripeAccountToProducer({
+    required String producerId,
+    required String stripeAccountId,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      // Placeholder for Stripe account linking
+      throw Exception('Stripe account linking pending');
+    } catch (e) {
+      throw Exception('Failed to link Stripe account: $e');
+    }
+  }
+
+  // Event Listings Methods
+  Future<String> createEvent({
+    required String eventId,
+    required String producerId,
+    required String title,
+    required String description,
+    required String venue,
+    required String location,
+    required DateTime startTime,
+    required DateTime endTime,
+    required int ticketPrice,
+    required int maxTickets,
+    required int category,
+    String imageUri = "",
+    String metadata = "",
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      // Placeholder for event creation
+      throw Exception('Event creation pending');
+    } catch (e) {
+      throw Exception('Failed to create event: $e');
+    }
+  }
+
+  // Ticketing Methods
+  Future<String> createTicket({
+    required String ticketId,
+    required String eventId,
+    required String avatarId,
+    required int price,
+    required String stripePaymentIntentId,
+    String metadata = "",
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      // Placeholder for ticket creation
+      throw Exception('Ticket creation pending');
+    } catch (e) {
+      throw Exception('Failed to create ticket: $e');
+    }
+  }
+
+  Future<String> validateTicket({
+    required String ticketId,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      // Placeholder for ticket validation
+      throw Exception('Ticket validation pending');
+    } catch (e) {
+      throw Exception('Failed to validate ticket: $e');
+    }
+  }
+
+  Future<String> checkInTicketWithQRCode({
+    required String qrCodeHash,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      // Convert hex string to bytes32 for blockchain
+      // Note: This would require adding Ticketing contract ABI
+      // For now, this is a placeholder that shows the structure
+      throw Exception('QR code check-in pending contract integration');
+    } catch (e) {
+      throw Exception('Failed to check in ticket: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getTicketFromQRCode(String qrCodeHash) async {
+    try {
+      // Get ticket information from QR code hash
+      // Placeholder for ticket lookup
+      throw Exception('Ticket lookup from QR code pending');
+    } catch (e) {
+      throw Exception('Failed to get ticket from QR code: $e');
+    }
+  }
+
   void dispose() {
     _client.dispose();
     _isInitialized = false;

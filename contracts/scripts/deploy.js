@@ -37,6 +37,37 @@ async function main() {
   const superstarAvatarRegistryAddress = await superstarAvatarRegistry.getAddress();
   console.log("SuperstarAvatarRegistry deployed to:", superstarAvatarRegistryAddress);
 
+  // Deploy EventProducer contract
+  console.log("\nDeploying EventProducer contract...");
+  const EventProducer = await ethers.getContractFactory("EventProducer");
+  const eventProducer = await EventProducer.deploy();
+  await eventProducer.waitForDeployment();
+  const eventProducerAddress = await eventProducer.getAddress();
+  console.log("EventProducer deployed to:", eventProducerAddress);
+
+  // Deploy EventListings contract (requires EventProducer address)
+  console.log("\nDeploying EventListings contract...");
+  const EventListings = await ethers.getContractFactory("EventListings");
+  const eventListings = await EventListings.deploy(eventProducerAddress);
+  await eventListings.waitForDeployment();
+  const eventListingsAddress = await eventListings.getAddress();
+  console.log("EventListings deployed to:", eventListingsAddress);
+
+  // Deploy Ticketing contract (requires EventListings and EventProducer addresses)
+  console.log("\nDeploying Ticketing contract...");
+  const Ticketing = await ethers.getContractFactory("Ticketing");
+  // Platform fee: 5% (500 basis points), fee recipient is deployer
+  const platformFeePercentage = 500; // 5%
+  const ticketing = await Ticketing.deploy(
+    eventListingsAddress,
+    eventProducerAddress,
+    platformFeePercentage,
+    deployer.address
+  );
+  await ticketing.waitForDeployment();
+  const ticketingAddress = await ticketing.getAddress();
+  console.log("Ticketing deployed to:", ticketingAddress);
+
   // Create some initial achievements
   console.log("\nCreating initial achievements...");
   await superstarAvatarRegistry.createAchievement(
@@ -165,6 +196,9 @@ async function main() {
       HouseMembership: houseMembershipAddress,
       ActivityScripts: activityScriptsAddress,
       SuperstarAvatarRegistry: superstarAvatarRegistryAddress,
+      EventProducer: eventProducerAddress,
+      EventListings: eventListingsAddress,
+      Ticketing: ticketingAddress,
     },
     timestamp: new Date().toISOString(),
   };
