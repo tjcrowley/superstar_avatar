@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/blockchain_service.dart';
 import '../services/qr_code_service.dart';
-import '../models/ticket.dart';
 import '../models/event.dart';
 import '../constants/app_constants.dart';
 
@@ -12,10 +11,10 @@ class CheckInScreen extends ConsumerStatefulWidget {
   final Event event;
 
   const CheckInScreen({
-    Key? key,
+    super.key,
     required this.eventId,
     required this.event,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<CheckInScreen> createState() => _CheckInScreenState();
@@ -28,8 +27,7 @@ class _CheckInScreenState extends ConsumerState<CheckInScreen> {
   
   bool _isScanning = true;
   bool _isProcessing = false;
-  String? _lastScannedData;
-  List<CheckInResult> _checkInHistory = [];
+  final List<CheckInResult> _checkInHistory = [];
 
   @override
   void dispose() {

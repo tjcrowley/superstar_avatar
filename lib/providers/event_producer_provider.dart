@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/blockchain_service.dart';
 import '../services/stripe_service.dart';
 import '../constants/app_constants.dart';
+import 'avatar_provider.dart';
 
 class EventProducer {
   final String producerId;
@@ -94,7 +96,7 @@ class EventProducerNotifier extends StateNotifier<EventProducer?> {
         state = EventProducer.fromJson(producerData);
       }
     } catch (e) {
-      print('Error loading event producer: $e');
+      debugPrint('Error loading event producer: $e');
     }
   }
 
@@ -104,7 +106,7 @@ class EventProducerNotifier extends StateNotifier<EventProducer?> {
       await _prefs.setString('event_producer_data', producerJson);
       state = producer;
     } catch (e) {
-      print('Error saving event producer: $e');
+      debugPrint('Error saving event producer: $e');
     }
   }
 
@@ -147,7 +149,7 @@ class EventProducerNotifier extends StateNotifier<EventProducer?> {
             stripeAccountId: stripeAccountId,
           );
         } catch (e) {
-          print('Error creating Stripe account: $e');
+          debugPrint('Error creating Stripe account: $e');
           // Continue without Stripe account - can be linked later
         }
       }

@@ -8,10 +8,10 @@ class TicketQRCode extends StatelessWidget {
   final double size;
 
   const TicketQRCode({
-    Key? key,
+    super.key,
     required this.ticket,
     this.size = 200,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

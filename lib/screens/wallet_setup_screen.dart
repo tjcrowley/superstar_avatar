@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
 import '../services/blockchain_service.dart';
+import '../providers/wallet_provider.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/secure_text_field.dart';
 
@@ -39,6 +40,9 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       final mnemonic = await blockchainService.createWallet();
       final walletAddress = blockchainService.walletAddress;
 
+      // Connect wallet via provider (without storing mnemonic yet - user needs to confirm they saved it)
+      await ref.read(walletProvider.notifier).connectWallet(null);
+
       setState(() {
         _generatedMnemonic = mnemonic;
         _walletAddress = walletAddress;
@@ -48,7 +52,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Wallet created successfully!'),
+            content: Text('Wallet created successfully! Please save your recovery phrase.'),
             backgroundColor: AppConstants.successColor,
           ),
         );
@@ -77,9 +81,13 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
     });
 
     try {
+      final mnemonic = _mnemonicController.text.trim();
       final blockchainService = BlockchainService();
-      await blockchainService.importWallet(_mnemonicController.text.trim());
+      await blockchainService.importWallet(mnemonic);
       final walletAddress = blockchainService.walletAddress;
+
+      // Connect wallet via provider to trigger AppRouter rebuild
+      await ref.read(walletProvider.notifier).connectWallet(mnemonic);
 
       setState(() {
         _walletAddress = walletAddress;
@@ -109,14 +117,67 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
     }
   }
 
-  void _confirmMnemonic() {
+  Future<void> _confirmMnemonic() async {
+    if (_generatedMnemonic == null) return;
+    
     setState(() {
       _showMnemonic = false;
     });
+    
+    try {
+      // Store the mnemonic securely now that user has confirmed they saved it
+      await ref.read(walletProvider.notifier).storeCreatedWalletMnemonic(_generatedMnemonic!);
+      
+      // Ensure wallet provider state is updated to trigger AppRouter rebuild
+      await ref.read(walletProvider.notifier).connectWallet(null);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Wallet saved! Your wallet will be restored automatically on next launch.'),
+            backgroundColor: AppConstants.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save wallet: $e'),
+            backgroundColor: AppConstants.errorColor,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Watch wallet provider to detect when wallet is connected
+    final isWalletConnected = ref.watch(isWalletConnectedProvider);
+    
+    // If wallet is connected, show loading while AppRouter navigates
+    if (isWalletConnected && _walletAddress != null) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: AppConstants.spacingL),
+                Text(
+                  'Wallet connected! Setting up your experience...',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -162,8 +223,8 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                 
                 const SizedBox(height: AppConstants.spacingXL),
 
-                // Wallet Address Display
-                if (_walletAddress != null) ...[
+                // Wallet Address Display (only show if wallet is connected but not yet navigated)
+                if (_walletAddress != null && !_showMnemonic && !isWalletConnected) ...[
                   Container(
                     padding: const EdgeInsets.all(AppConstants.spacingM),
                     decoration: BoxDecoration(
@@ -174,7 +235,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                     child: Column(
                       children: [
                         Text(
-                          'Wallet Address',
+                          'Wallet Connected',
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                         const SizedBox(height: AppConstants.spacingS),
@@ -188,6 +249,19 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                     ),
                   ),
                   const SizedBox(height: AppConstants.spacingL),
+                  // AppRouter will automatically navigate when wallet state changes
+                  // Show loading indicator while navigation happens
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  const SizedBox(height: AppConstants.spacingM),
+                  Text(
+                    'Navigating to app...',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppConstants.textSecondaryColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
 
                 // Mnemonic Display

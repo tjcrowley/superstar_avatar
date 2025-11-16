@@ -27,6 +27,28 @@ class AppConstants {
     'kindness': Color(0xFFF59E0B),
   };
 
+  // Goldfire Activity Type Colors (Phase 1 - Basic Activities)
+  static const Map<String, Color> activityTypeColors = {
+    'personalResources': Color(0xFF6366F1),  // Indigo
+    'introductions': Color(0xFF3B82F6),      // Blue
+    'dynamics': Color(0xFF8B5CF6),           // Purple
+    'locales': Color(0xFF10B981),            // Green
+    'mythicLens': Color(0xFFF59E0B),         // Amber
+    'alchemy': Color(0xFFEF4444),            // Red
+    'tales': Color(0xFF06B6D4),              // Cyan
+  };
+
+  // Activity Type Icons
+  static const Map<String, String> activityTypeIcons = {
+    'personalResources': '📋',
+    'introductions': '👋',
+    'dynamics': '⚡',
+    'locales': '📍',
+    'mythicLens': '🔮',
+    'alchemy': '✨',
+    'tales': '📖',
+  };
+
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primaryColor, secondaryColor],

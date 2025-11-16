@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -22,7 +23,7 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
         state = Avatar.fromJson(avatarData);
       }
     } catch (e) {
-      print('Error loading avatar: $e');
+      debugPrint('Error loading avatar: $e');
     }
   }
 
@@ -32,7 +33,7 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
       await _prefs.setString(AppConstants.avatarDataKey, avatarJson);
       state = avatar;
     } catch (e) {
-      print('Error saving avatar: $e');
+      debugPrint('Error saving avatar: $e');
     }
   }
 
@@ -156,8 +157,9 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
 
       // Call blockchain to join house
       await _blockchainService.joinHouse(
-        avatarId: state!.id,
         houseId: houseId,
+        avatarId: state!.id,
+        avatarName: state!.name,
       );
 
       final updatedAvatar = state!.copyWith(
@@ -222,7 +224,7 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
         avatarId: state!.id,
         powerType: powerType.index,
         experience: experience,
-        verifierId: verifierId,
+        metadata: 'Verified by: $verifierId',
       );
     } catch (e) {
       throw Exception('Failed to verify power on blockchain: $e');
@@ -240,23 +242,29 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
       // Sync power levels from blockchain
       final updatedPowers = <Power>[];
       for (final power in state!.powers) {
-        final blockchainLevel = await _blockchainService.getPowerLevel(
-          state!.id,
-          power.type.index,
-        );
+        try {
+          final powerData = await _blockchainService.getPowerData(
+            state!.id,
+            power.type.index,
+          );
+          final blockchainLevel = powerData['level'] as int;
 
-        if (blockchainLevel > power.level) {
-          updatedPowers.add(power.copyWith(
-            level: blockchainLevel,
-            lastUpdated: DateTime.now(),
-          ));
-        } else {
+          if (blockchainLevel > power.level) {
+            updatedPowers.add(power.copyWith(
+              level: blockchainLevel,
+              lastUpdated: DateTime.now(),
+            ));
+          } else {
+            updatedPowers.add(power);
+          }
+        } catch (e) {
+          // If blockchain call fails, keep existing power
           updatedPowers.add(power);
         }
       }
 
       // Sync house membership
-      final houseId = await _blockchainService.getHouseId(state!.id);
+      final houseId = await _blockchainService.getAvatarHouse(state!.id);
 
       final updatedAvatar = state!.copyWith(
         powers: updatedPowers,
@@ -266,7 +274,7 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
 
       await _saveAvatar(updatedAvatar);
     } catch (e) {
-      print('Error syncing with blockchain: $e');
+      debugPrint('Error syncing with blockchain: $e');
     }
   }
 

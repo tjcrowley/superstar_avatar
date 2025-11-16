@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:web3dart/web3dart.dart';
 import 'package:http/http.dart' as http;
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:crypto/crypto.dart';
+import 'package:convert/convert.dart';
 import '../constants/app_constants.dart';
 
 class BlockchainService {
@@ -145,6 +145,28 @@ class BlockchainService {
     [
       {
         "inputs": [
+          {"name": "title", "type": "string"},
+          {"name": "description", "type": "string"},
+          {"name": "instructions", "type": "string"},
+          {"name": "activityType", "type": "uint8"},
+          {"name": "primaryPower", "type": "uint8"},
+          {"name": "secondaryPowers", "type": "uint8[]"},
+          {"name": "experienceReward", "type": "uint256"},
+          {"name": "difficulty", "type": "uint256"},
+          {"name": "timeLimit", "type": "uint256"},
+          {"name": "maxCompletions", "type": "uint256"},
+          {"name": "requiresVerification", "type": "bool"},
+          {"name": "metadata", "type": "string"},
+          {"name": "authorId", "type": "string"},
+          {"name": "decentralizedStorageRef", "type": "string"}
+        ],
+        "name": "createActivityScript",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
           {"name": "activityId", "type": "string"},
           {"name": "avatarId", "type": "string"},
           {"name": "proof", "type": "string"}
@@ -174,6 +196,7 @@ class BlockchainService {
           {"name": "title", "type": "string"},
           {"name": "description", "type": "string"},
           {"name": "instructions", "type": "string"},
+          {"name": "activityType", "type": "uint8"},
           {"name": "primaryPower", "type": "uint8"},
           {"name": "secondaryPowers", "type": "uint8[]"},
           {"name": "experienceReward", "type": "uint256"},
@@ -184,7 +207,9 @@ class BlockchainService {
           {"name": "createdAt", "type": "uint256"},
           {"name": "isActive", "type": "bool"},
           {"name": "requiresVerification", "type": "bool"},
-          {"name": "metadata", "type": "string"}
+          {"name": "metadata", "type": "string"},
+          {"name": "authorId", "type": "string"},
+          {"name": "decentralizedStorageRef", "type": "string"}
         ],
         "stateMutability": "view",
         "type": "function"
@@ -196,6 +221,13 @@ class BlockchainService {
         ],
         "name": "hasCompletedActivity",
         "outputs": [{"name": "completed", "type": "bool"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "activityType", "type": "uint8"}],
+        "name": "getActivitiesByType",
+        "outputs": [{"name": "activityIds", "type": "string[]"}],
         "stateMutability": "view",
         "type": "function"
       }
@@ -293,6 +325,9 @@ class BlockchainService {
       );
 
       _isInitialized = true;
+      
+      // Note: Wallet credentials are not persisted for security reasons
+      // Users must re-import their wallet on app restart
     } catch (e) {
       throw Exception('Failed to initialize blockchain service: $e');
     }
@@ -305,7 +340,7 @@ class BlockchainService {
       final privateKey = seed.sublist(0, 32);
       
       _credentials = EthPrivateKey(privateKey);
-      _walletAddress = await _credentials.extractAddress();
+      _walletAddress = _credentials.address.hex;
       
       return mnemonic;
     } catch (e) {
@@ -319,7 +354,7 @@ class BlockchainService {
       final privateKey = seed.sublist(0, 32);
       
       _credentials = EthPrivateKey(privateKey);
-      _walletAddress = await _credentials.extractAddress();
+      _walletAddress = _credentials.address.hex;
     } catch (e) {
       throw Exception('Failed to import wallet: $e');
     }
@@ -334,7 +369,8 @@ class BlockchainService {
     
     try {
       final address = EthereumAddress.fromHex(_walletAddress!);
-      return await _client.getBalance(address);
+      final balance = await _client.getBalance(address);
+      return balance.getInWei;
     } catch (e) {
       throw Exception('Failed to get balance: $e');
     }
@@ -358,17 +394,19 @@ class BlockchainService {
         metadata,
       ];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _powerVerificationContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _powerVerificationContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to verify power: $e');
     }
@@ -460,17 +498,19 @@ class BlockchainService {
         metadata,
       ];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _houseMembershipContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to create house: $e');
     }
@@ -487,17 +527,19 @@ class BlockchainService {
       final function = _houseMembershipContract.function('joinHouse');
       final params = [houseId, avatarId, avatarName];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _houseMembershipContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to join house: $e');
     }
@@ -513,17 +555,19 @@ class BlockchainService {
       final function = _houseMembershipContract.function('leaveHouse');
       final params = [houseId, avatarId];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _houseMembershipContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to leave house: $e');
     }
@@ -577,7 +621,63 @@ class BlockchainService {
     }
   }
 
-  // Activity Scripts Methods
+  // Activity Scripts Methods (Goldfire Phase 1 Integration)
+  /// Create a new activity script with ActivityType and Power associations
+  Future<String> createActivityScript({
+    required String title,
+    required String description,
+    required String instructions,
+    required int activityType,  // ActivityType enum index (0-6)
+    required int primaryPower,  // PowerType enum index (0-4)
+    required List<int> secondaryPowers,  // PowerType enum indices (max 4)
+    required int experienceReward,
+    required int difficulty,  // 1-10
+    required int timeLimit,  // seconds, 0 for no limit
+    required int maxCompletions,  // 0 for unlimited
+    required bool requiresVerification,
+    required String metadata,  // JSON string for Tales, narrative, etc.
+    required String authorId,  // Avatar ID or House ID
+    required String decentralizedStorageRef,  // IPFS hash
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _activityScriptsContract.function('createActivityScript');
+      final params = [
+        title,
+        description,
+        instructions,
+        BigInt.from(activityType),  // ActivityType enum
+        BigInt.from(primaryPower),  // PowerType enum
+        secondaryPowers.map((p) => BigInt.from(p)).toList(),  // PowerType[] enum array
+        BigInt.from(experienceReward),
+        BigInt.from(difficulty),
+        BigInt.from(timeLimit),
+        BigInt.from(maxCompletions),
+        requiresVerification,
+        metadata,
+        authorId,
+        decentralizedStorageRef,
+      ];
+
+      final transaction = Transaction.callContract(
+        contract: _activityScriptsContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      throw Exception('Failed to create activity script: $e');
+    }
+  }
+
   Future<String> completeActivity({
     required String activityId,
     required String avatarId,
@@ -589,17 +689,19 @@ class BlockchainService {
       final function = _activityScriptsContract.function('completeActivity');
       final params = [activityId, avatarId, proof];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _activityScriptsContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _activityScriptsContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to complete activity: $e');
     }
@@ -622,17 +724,19 @@ class BlockchainService {
         BigInt.from(adjustedExperience),
       ];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _activityScriptsContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _activityScriptsContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to verify activity: $e');
     }
@@ -677,17 +781,19 @@ class BlockchainService {
         BigInt.from(totalExperience),
       ];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _superstarAvatarRegistryContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _superstarAvatarRegistryContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to register Superstar Avatar: $e');
     }
@@ -703,17 +809,19 @@ class BlockchainService {
       final function = _superstarAvatarRegistryContract.function('unlockAchievement');
       final params = [avatarId, achievementId];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _superstarAvatarRegistryContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _superstarAvatarRegistryContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to unlock achievement: $e');
     }
@@ -729,17 +837,19 @@ class BlockchainService {
       final function = _superstarAvatarRegistryContract.function('awardBadge');
       final params = [avatarId, badgeId];
 
-      final transaction = await _client.sendTransaction(
+      final transaction = Transaction.callContract(
+        contract: _superstarAvatarRegistryContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
         _credentials,
-        Transaction.callContract(
-          contract: _superstarAvatarRegistryContract,
-          function: function,
-          params: params,
-        ),
+        transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
-      return transaction;
+      return txHash;
     } catch (e) {
       throw Exception('Failed to award badge: $e');
     }
@@ -782,8 +892,8 @@ class BlockchainService {
 
     try {
       final messageBytes = utf8.encode(message);
-      final signature = await _credentials.signPersonalMessage(messageBytes);
-      return signature.toHex();
+      final signature = await _credentials.signPersonalMessageToUint8List(messageBytes);
+      return hex.encode(signature);
     } catch (e) {
       throw Exception('Failed to sign message: $e');
     }
@@ -793,9 +903,6 @@ class BlockchainService {
     try {
       final messageBytes = utf8.encode(message);
       final signatureBytes = hex.decode(signature);
-      
-      final messageHash = sha256.convert(messageBytes);
-      final signatureHash = sha256.convert(signatureBytes);
       
       return signatureBytes.length == 65; // ECDSA signature length
     } catch (e) {

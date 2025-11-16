@@ -1,5 +1,16 @@
 import 'power.dart';
 
+// Goldfire Activity Types (Phase 1 - Basic Activities)
+enum ActivityType {
+  personalResources,  // Personal Resources - self-assessment of traits, skills, values, projects, growth edges
+  introductions,      // Introductions - making authentic connections between participants
+  dynamics,           // Dynamics - guidelines and structured activities for prosocial behavior
+  locales,            // Locales - physical or conceptual locations with associated activities
+  mythicLens,         // Mythic Lens - symbolic, archetypal, or narrative-based perspectives
+  alchemy,            // Alchemy - kindness, empathy, and virtuosity in action
+  tales,              // Tales - stories associated with activities, houses, avatars, powers, locales
+}
+
 enum ActivityDifficulty {
   beginner,
   intermediate,
@@ -19,7 +30,10 @@ class ActivityScript {
   final String title;
   final String description;
   final String instructions;
-  final List<PowerType> targetPowers;
+  final ActivityType activityType;  // Required: One Activity Type (Goldfire Phase 1)
+  final PowerType primaryPower;  // Required: Primary power association
+  final List<PowerType> secondaryPowers;  // Optional: up to 4 secondary power associations
+  final List<PowerType> targetPowers;  // Computed: primary + secondary powers
   final ActivityDifficulty difficulty;
   final int estimatedDuration; // in minutes
   final int experienceReward;
@@ -30,7 +44,8 @@ class ActivityScript {
   final DateTime? publishedAt;
   final List<String> tags;
   final String? imageUrl;
-  final Map<String, dynamic> metadata;
+  final Map<String, dynamic> metadata;  // For Tales, narrative, and additional data
+  final String? decentralizedStorageRef;  // IPFS hash or other decentralized storage reference
   final double rating;
   final int reviewCount;
   final List<String> requiredItems;
@@ -43,7 +58,9 @@ class ActivityScript {
     required this.title,
     required this.description,
     required this.instructions,
-    required this.targetPowers,
+    required this.activityType,
+    required this.primaryPower,
+    this.secondaryPowers = const [],
     required this.difficulty,
     required this.estimatedDuration,
     required this.experienceReward,
@@ -55,25 +72,36 @@ class ActivityScript {
     this.tags = const [],
     this.imageUrl,
     this.metadata = const {},
+    this.decentralizedStorageRef,
     this.rating = 0.0,
     this.reviewCount = 0,
     this.requiredItems = const [],
     this.isGroupActivity = false,
     this.minParticipants = 1,
     this.maxParticipants = 1,
-  });
+  }) : targetPowers = [primaryPower, ...secondaryPowers];  // Computed property
 
   factory ActivityScript.fromJson(Map<String, dynamic> json) {
+    final primaryPower = PowerType.values.firstWhere(
+      (e) => e.toString().split('.').last == json['primaryPower'],
+    );
+    final secondaryPowers = (json['secondaryPowers'] as List? ?? [])
+        .map((power) => PowerType.values.firstWhere(
+              (e) => e.toString().split('.').last == power,
+            ))
+        .toList();
+    
     return ActivityScript(
       id: json['id'],
       title: json['title'],
       description: json['description'],
       instructions: json['instructions'],
-      targetPowers: (json['targetPowers'] as List)
-          .map((power) => PowerType.values.firstWhere(
-                (e) => e.toString().split('.').last == power,
-              ))
-          .toList(),
+      activityType: ActivityType.values.firstWhere(
+        (e) => e.toString().split('.').last == json['activityType'],
+        orElse: () => ActivityType.dynamics,  // Default fallback
+      ),
+      primaryPower: primaryPower,
+      secondaryPowers: secondaryPowers,
       difficulty: ActivityDifficulty.values.firstWhere(
         (e) => e.toString().split('.').last == json['difficulty'],
       ),
@@ -91,6 +119,7 @@ class ActivityScript {
       tags: List<String>.from(json['tags'] ?? []),
       imageUrl: json['imageUrl'],
       metadata: Map<String, dynamic>.from(json['metadata'] ?? {}),
+      decentralizedStorageRef: json['decentralizedStorageRef'],
       rating: (json['rating'] ?? 0.0).toDouble(),
       reviewCount: json['reviewCount'] ?? 0,
       requiredItems: List<String>.from(json['requiredItems'] ?? []),
@@ -106,6 +135,11 @@ class ActivityScript {
       'title': title,
       'description': description,
       'instructions': instructions,
+      'activityType': activityType.toString().split('.').last,
+      'primaryPower': primaryPower.toString().split('.').last,
+      'secondaryPowers': secondaryPowers
+          .map((power) => power.toString().split('.').last)
+          .toList(),
       'targetPowers': targetPowers
           .map((power) => power.toString().split('.').last)
           .toList(),
@@ -120,6 +154,7 @@ class ActivityScript {
       'tags': tags,
       'imageUrl': imageUrl,
       'metadata': metadata,
+      'decentralizedStorageRef': decentralizedStorageRef,
       'rating': rating,
       'reviewCount': reviewCount,
       'requiredItems': requiredItems,
@@ -134,7 +169,9 @@ class ActivityScript {
     String? title,
     String? description,
     String? instructions,
-    List<PowerType>? targetPowers,
+    ActivityType? activityType,
+    PowerType? primaryPower,
+    List<PowerType>? secondaryPowers,
     ActivityDifficulty? difficulty,
     int? estimatedDuration,
     int? experienceReward,
@@ -146,6 +183,7 @@ class ActivityScript {
     List<String>? tags,
     String? imageUrl,
     Map<String, dynamic>? metadata,
+    String? decentralizedStorageRef,
     double? rating,
     int? reviewCount,
     List<String>? requiredItems,
@@ -158,7 +196,9 @@ class ActivityScript {
       title: title ?? this.title,
       description: description ?? this.description,
       instructions: instructions ?? this.instructions,
-      targetPowers: targetPowers ?? this.targetPowers,
+      activityType: activityType ?? this.activityType,
+      primaryPower: primaryPower ?? this.primaryPower,
+      secondaryPowers: secondaryPowers ?? this.secondaryPowers,
       difficulty: difficulty ?? this.difficulty,
       estimatedDuration: estimatedDuration ?? this.estimatedDuration,
       experienceReward: experienceReward ?? this.experienceReward,
@@ -170,6 +210,7 @@ class ActivityScript {
       tags: tags ?? this.tags,
       imageUrl: imageUrl ?? this.imageUrl,
       metadata: metadata ?? this.metadata,
+      decentralizedStorageRef: decentralizedStorageRef ?? this.decentralizedStorageRef,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       requiredItems: requiredItems ?? this.requiredItems,
@@ -206,13 +247,54 @@ class ActivityScript {
     }
   }
 
+  // Helper getters for ActivityType
+  String get activityTypeLabel {
+    switch (activityType) {
+      case ActivityType.personalResources:
+        return 'Personal Resources';
+      case ActivityType.introductions:
+        return 'Introductions';
+      case ActivityType.dynamics:
+        return 'Dynamics';
+      case ActivityType.locales:
+        return 'Locales';
+      case ActivityType.mythicLens:
+        return 'Mythic Lens';
+      case ActivityType.alchemy:
+        return 'Alchemy';
+      case ActivityType.tales:
+        return 'Tales';
+    }
+  }
+
+  String get activityTypeDescription {
+    switch (activityType) {
+      case ActivityType.personalResources:
+        return 'Self-assessment of personal traits, skills, values, projects, and growth edges';
+      case ActivityType.introductions:
+        return 'Activities that support making authentic connections between participants';
+      case ActivityType.dynamics:
+        return 'Guidelines and structured activities to promote prosocial behavior';
+      case ActivityType.locales:
+        return 'Physical or conceptual locations with associated activities and tasks';
+      case ActivityType.mythicLens:
+        return 'Activities that refine interactions using symbolic, archetypal, or narrative perspectives';
+      case ActivityType.alchemy:
+        return 'Activities that put kindness, empathy, and virtuosity into action';
+      case ActivityType.tales:
+        return 'Stories associated with activities, houses, avatars, powers, or locales';
+    }
+  }
+
   static List<ActivityScript> get sampleActivities => [
         ActivityScript(
           id: 'activity-1',
           title: 'The Courageous Introduction',
           description: 'Approach someone new and introduce yourself with confidence',
           instructions: 'Find someone you don\'t know at the event and introduce yourself. Share something interesting about yourself and ask them a thoughtful question.',
-          targetPowers: [PowerType.courage, PowerType.connection],
+          activityType: ActivityType.introductions,
+          primaryPower: PowerType.courage,
+          secondaryPowers: [PowerType.connection],
           difficulty: ActivityDifficulty.beginner,
           estimatedDuration: 5,
           experienceReward: 25,
@@ -229,7 +311,9 @@ class ActivityScript {
           title: 'Creative Problem Solving',
           description: 'Work with your house to solve a creative challenge',
           instructions: 'Your house will be given a creative challenge. Work together to come up with innovative solutions and present your ideas.',
-          targetPowers: [PowerType.creativity, PowerType.connection],
+          activityType: ActivityType.dynamics,
+          primaryPower: PowerType.creativity,
+          secondaryPowers: [PowerType.connection],
           difficulty: ActivityDifficulty.intermediate,
           estimatedDuration: 30,
           experienceReward: 50,
@@ -248,7 +332,9 @@ class ActivityScript {
           title: 'Kindness Chain',
           description: 'Perform three acts of kindness and inspire others to do the same',
           instructions: 'Complete three different acts of kindness during the event. Document each act and encourage others to continue the chain of kindness.',
-          targetPowers: [PowerType.kindness, PowerType.connection],
+          activityType: ActivityType.alchemy,
+          primaryPower: PowerType.kindness,
+          secondaryPowers: [PowerType.connection],
           difficulty: ActivityDifficulty.beginner,
           estimatedDuration: 45,
           experienceReward: 40,

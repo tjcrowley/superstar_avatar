@@ -4,6 +4,7 @@ import '../constants/app_constants.dart';
 import '../models/activity_script.dart';
 import '../providers/avatar_provider.dart';
 import '../widgets/gradient_button.dart';
+import 'activity_authoring_screen.dart';
 
 class ActivitiesScreen extends ConsumerStatefulWidget {
   const ActivitiesScreen({super.key});
@@ -73,6 +74,17 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
         title: const Text('Activities'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Author Activity',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const ActivityAuthoringScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
               // TODO: Implement activity search
@@ -100,6 +112,9 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
   }
 
   Widget _buildActivityCard(ActivityScript activity) {
+    final activityTypeString = activity.activityType.toString().split('.').last;
+    final activityTypeColor = AppConstants.activityTypeColors[activityTypeString] ?? AppConstants.primaryColor;
+    final activityTypeIcon = AppConstants.activityTypeIcons[activityTypeString] ?? '📝';
     return Card(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingM),
       child: Padding(
@@ -121,7 +136,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
                     vertical: AppConstants.spacingXS,
                   ),
                   decoration: BoxDecoration(
-                    color: _getDifficultyColor(activity.difficulty).withOpacity(0.1),
+                    color: _getDifficultyColor(activity.difficulty).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppConstants.borderRadiusS),
                   ),
                   child: Text(
@@ -133,6 +148,34 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
                   ),
                 ),
               ],
+            ),
+            
+            const SizedBox(height: AppConstants.spacingS),
+            
+            // Activity Type Badge (Goldfire Phase 1)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppConstants.spacingS,
+                vertical: AppConstants.spacingXS,
+              ),
+              decoration: BoxDecoration(
+                color: activityTypeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppConstants.borderRadiusS),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(activityTypeIcon, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: AppConstants.spacingXS),
+                  Text(
+                    activity.activityTypeLabel,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: activityTypeColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
             
             const SizedBox(height: AppConstants.spacingS),
@@ -157,7 +200,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
                     vertical: AppConstants.spacingXS,
                   ),
                   decoration: BoxDecoration(
-                    color: color!.withOpacity(0.1),
+                    color: color!.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppConstants.borderRadiusS),
                   ),
                   child: Text(
@@ -249,7 +292,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
         vertical: AppConstants.spacingXS,
       ),
       decoration: BoxDecoration(
-        color: AppConstants.textSecondaryColor.withOpacity(0.1),
+        color: AppConstants.textSecondaryColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppConstants.borderRadiusS),
       ),
       child: Row(

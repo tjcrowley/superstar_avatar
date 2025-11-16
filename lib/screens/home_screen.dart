@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
 import '../providers/avatar_provider.dart';
-import '../models/power.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/power_card.dart';
 import '../widgets/avatar_profile_card.dart';

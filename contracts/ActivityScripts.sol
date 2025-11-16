@@ -15,14 +15,26 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
     // Power types enum
     enum PowerType { Courage, Creativity, Connection, Insight, Kindness }
 
+    // Goldfire Activity Types enum (Phase 1 - Basic Activities)
+    enum ActivityType {
+        PersonalResources,  // Personal Resources
+        Introductions,       // Introductions
+        Dynamics,           // Dynamics
+        Locales,            // Locales
+        MythicLens,         // Mythic Lens
+        Alchemy,            // Alchemy
+        Tales               // Tales
+    }
+
     // Activity script structure
     struct ActivityScript {
         string id;
         string title;
         string description;
         string instructions;
+        ActivityType activityType;  // Required: One Activity Type
         PowerType primaryPower;
-        PowerType[] secondaryPowers;
+        PowerType[] secondaryPowers;  // Optional: up to 4 secondary powers
         uint256 experienceReward;
         uint256 difficulty;
         uint256 timeLimit; // in seconds, 0 for no limit
@@ -31,7 +43,9 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
         uint256 createdAt;
         bool isActive;
         bool requiresVerification;
-        string metadata; // JSON string for additional data
+        string metadata; // JSON string for additional data (decentralized storage reference, Tales, etc.)
+        string authorId; // Avatar ID or House ID of the author
+        string decentralizedStorageRef; // IPFS hash or other decentralized storage reference
     }
 
     // Completion record structure
@@ -72,8 +86,10 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
     event ActivityScriptCreated(
         string indexed activityId,
         string title,
+        ActivityType indexed activityType,
         PowerType indexed primaryPower,
         uint256 experienceReward,
+        string authorId,
         uint256 timestamp
     );
 
@@ -113,6 +129,17 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
         uint256 timestamp
     );
 
+    /**
+     * @dev Get activities by activity type
+     * @param activityType Activity type to filter by
+     * @return activityIds Array of activity IDs (requires event indexing for full implementation)
+     */
+    function getActivitiesByType(ActivityType activityType) external view returns (string[] memory activityIds) {
+        // This would require additional storage or events to track efficiently
+        // For now, return empty array - implement with events or additional mapping
+        return new string[](0);
+    }
+
     // Modifiers
     modifier scriptExists(string memory activityId) {
         require(bytes(activityScripts[activityId].id).length > 0, "Activity script does not exist");
@@ -140,23 +167,27 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Create a new activity script
+     * @dev Create a new activity script (Goldfire Phase 1 - Basic Activities)
      * @param title Activity title
      * @param description Activity description
      * @param instructions Activity instructions
-     * @param primaryPower Primary power type
-     * @param secondaryPowers Array of secondary power types
+     * @param activityType Activity Type (PersonalResources, Introductions, Dynamics, Locales, MythicLens, Alchemy, Tales)
+     * @param primaryPower Primary power type (required)
+     * @param secondaryPowers Array of secondary power types (optional, max 4)
      * @param experienceReward Experience reward
      * @param difficulty Difficulty level (1-10)
      * @param timeLimit Time limit in seconds (0 for no limit)
      * @param maxCompletions Maximum number of completions (0 for unlimited)
      * @param requiresVerification Whether verification is required
-     * @param metadata Additional metadata
+     * @param metadata Additional metadata (JSON string for Tales, narrative, etc.)
+     * @param authorId Avatar ID or House ID of the author
+     * @param decentralizedStorageRef IPFS hash or other decentralized storage reference
      */
     function createActivityScript(
         string memory title,
         string memory description,
         string memory instructions,
+        ActivityType activityType,
         PowerType primaryPower,
         PowerType[] memory secondaryPowers,
         uint256 experienceReward,
@@ -164,12 +195,19 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
         uint256 timeLimit,
         uint256 maxCompletions,
         bool requiresVerification,
-        string memory metadata
-    ) external onlyOwner {
+        string memory metadata,
+        string memory authorId,
+        string memory decentralizedStorageRef
+    ) external {
         require(bytes(title).length > 0, "Title cannot be empty");
+        require(bytes(authorId).length > 0, "Author ID cannot be empty");
         require(experienceReward > 0 && experienceReward <= 1000, "Invalid experience reward");
         require(difficulty >= 1 && difficulty <= 10, "Invalid difficulty");
         require(secondaryPowers.length <= 4, "Too many secondary powers");
+        
+        // Allow owner or any address (for user-authored activities in future phases)
+        // For Phase 1, we can restrict to owner or authorized authors
+        require(msg.sender == owner() || bytes(authorId).length > 0, "Not authorized to create activities");
         
         _scriptIds.increment();
         string memory activityId = string(abi.encodePacked("activity-", _scriptIds.current()));
@@ -179,6 +217,7 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
             title: title,
             description: description,
             instructions: instructions,
+            activityType: activityType,
             primaryPower: primaryPower,
             secondaryPowers: secondaryPowers,
             experienceReward: experienceReward,
@@ -189,12 +228,14 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
             createdAt: block.timestamp,
             isActive: true,
             requiresVerification: requiresVerification,
-            metadata: metadata
+            metadata: metadata,
+            authorId: authorId,
+            decentralizedStorageRef: decentralizedStorageRef
         });
         
         activityScripts[activityId] = newScript;
         
-        emit ActivityScriptCreated(activityId, title, primaryPower, experienceReward, block.timestamp);
+        emit ActivityScriptCreated(activityId, title, activityType, primaryPower, experienceReward, authorId, block.timestamp);
     }
 
     /**

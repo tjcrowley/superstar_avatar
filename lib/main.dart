@@ -9,6 +9,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/wallet_setup_screen.dart';
 import 'providers/avatar_provider.dart';
+import 'providers/wallet_provider.dart';
 import 'services/blockchain_service.dart';
 
 void main() async {
@@ -128,13 +129,13 @@ class SuperstarAvatarApp extends ConsumerWidget {
           vertical: AppConstants.spacingS,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.borderRadiusL),
         ),
         color: AppConstants.surfaceColor,
-        shadowColor: AppConstants.textPrimaryColor.withOpacity(0.1),
+        shadowColor: AppConstants.textPrimaryColor.withValues(alpha: 0.1),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppConstants.surfaceColor,
@@ -158,10 +159,10 @@ class AppRouter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasAvatar = ref.watch(hasAvatarProvider);
-    final blockchainService = BlockchainService();
+    final isWalletConnected = ref.watch(isWalletConnectedProvider);
 
     // Check if wallet is connected
-    if (!blockchainService.isWalletConnected) {
+    if (!isWalletConnected) {
       return const WalletSetupScreen();
     }
 

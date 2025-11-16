@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../constants/app_constants.dart';
 
 class StripeService {
   static final StripeService _instance = StripeService._internal();
