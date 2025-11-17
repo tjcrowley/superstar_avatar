@@ -29,8 +29,6 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
   }
 
   Future<void> _createWallet() async {
-    if (!_formKey.currentState!.validate()) return;
-
     setState(() {
       _isCreatingWallet = true;
     });
@@ -40,19 +38,22 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       final mnemonic = await blockchainService.createWallet();
       final walletAddress = blockchainService.walletAddress;
 
-      // Connect wallet via provider (without storing mnemonic yet - user needs to confirm they saved it)
-      await ref.read(walletProvider.notifier).connectWallet(null);
+      if (walletAddress == null) {
+        throw Exception('Failed to get wallet address after creation');
+      }
 
+      // Update state to show mnemonic (don't connect yet - user needs to confirm they saved it)
       setState(() {
         _generatedMnemonic = mnemonic;
         _walletAddress = walletAddress;
         _showMnemonic = true;
+        _isCreatingWallet = false;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Wallet created successfully! Please save your recovery phrase.'),
+            content: Text('Identity created successfully! Please save your recovery phrase.'),
             backgroundColor: AppConstants.successColor,
           ),
         );
@@ -61,12 +62,11 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to create wallet: $e'),
+            content: Text('Failed to create identity: $e'),
             backgroundColor: AppConstants.errorColor,
           ),
         );
       }
-    } finally {
       setState(() {
         _isCreatingWallet = false;
       });
@@ -96,7 +96,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Wallet imported successfully!'),
+            content: Text('Identity imported successfully!'),
             backgroundColor: AppConstants.successColor,
           ),
         );
@@ -105,7 +105,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to import wallet: $e'),
+            content: Text('Failed to import identity: $e'),
             backgroundColor: AppConstants.errorColor,
           ),
         );
@@ -128,13 +128,13 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       // Store the mnemonic securely now that user has confirmed they saved it
       await ref.read(walletProvider.notifier).storeCreatedWalletMnemonic(_generatedMnemonic!);
       
-      // Ensure wallet provider state is updated to trigger AppRouter rebuild
-      await ref.read(walletProvider.notifier).connectWallet(null);
+      // Connect wallet via provider to trigger AppRouter rebuild
+      await ref.read(walletProvider.notifier).connectWallet(_generatedMnemonic);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Wallet saved! Your wallet will be restored automatically on next launch.'),
+            content: Text('Identity saved! Your identity will be restored automatically on next launch.'),
             backgroundColor: AppConstants.successColor,
           ),
         );
@@ -143,7 +143,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save wallet: $e'),
+            content: Text('Failed to save identity: $e'),
             backgroundColor: AppConstants.errorColor,
           ),
         );
@@ -167,7 +167,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                 const CircularProgressIndicator(),
                 const SizedBox(height: AppConstants.spacingL),
                 Text(
-                  'Wallet connected! Setting up your experience...',
+                  'Identity connected! Setting up your experience...',
                   style: Theme.of(context).textTheme.bodyLarge,
                   textAlign: TextAlign.center,
                 ),
@@ -199,7 +199,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                     boxShadow: AppConstants.shadowLarge,
                   ),
                   child: const Icon(
-                    Icons.account_balance_wallet,
+                    Icons.person,
                     size: 60,
                     color: Colors.white,
                   ),
@@ -216,7 +216,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                 const SizedBox(height: AppConstants.spacingM),
                 
                 Text(
-                  'Connect your wallet to start your journey',
+                  'Connect your identity to start your journey',
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -235,7 +235,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                     child: Column(
                       children: [
                         Text(
-                          'Wallet Connected',
+                          'Identity Connected',
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                         const SizedBox(height: AppConstants.spacingS),
@@ -302,7 +302,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                         ),
                         const SizedBox(height: AppConstants.spacingM),
                         Text(
-                          'Write this down and keep it safe. You\'ll need it to recover your wallet.',
+                          'Write this down and keep it safe. You\'ll need it to recover your identity.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppConstants.textSecondaryColor,
                           ),
@@ -329,7 +329,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : const Text('Create New Wallet'),
+                        : const Text('Create New Identity'),
                   ),
                   
                   const SizedBox(height: AppConstants.spacingM),
@@ -361,7 +361,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                         _generatedMnemonic = null;
                       });
                     },
-                    child: const Text('Import Existing Wallet'),
+                    child: const Text('Import Existing Identity'),
                   ),
                   
                   const SizedBox(height: AppConstants.spacingL),
@@ -396,7 +396,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : const Text('Import Wallet'),
+                        : const Text('Import Identity'),
                   ),
                 ],
                 
@@ -404,7 +404,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                 
                 // Footer
                 Text(
-                  'Your wallet is secured by blockchain technology',
+                  'Your identity is secured by blockchain technology',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppConstants.textSecondaryColor,
                   ),
