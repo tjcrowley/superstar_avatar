@@ -8,6 +8,7 @@ import 'constants/app_constants.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/wallet_setup_screen.dart';
+import 'screens/edit_profile_screen.dart';
 import 'providers/avatar_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'services/blockchain_service.dart';
@@ -33,6 +34,9 @@ class SuperstarAvatarApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: const AppRouter(),
+      routes: {
+        '/edit-profile': (context) => const EditProfileScreen(),
+      },
     );
   }
 

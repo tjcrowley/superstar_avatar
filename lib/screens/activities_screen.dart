@@ -4,6 +4,7 @@ import '../constants/app_constants.dart';
 import '../models/activity_script.dart';
 import '../providers/avatar_provider.dart';
 import '../providers/activities_provider.dart';
+import '../services/blockchain_service.dart';
 import '../widgets/gradient_button.dart';
 import 'activity_authoring_screen.dart';
 

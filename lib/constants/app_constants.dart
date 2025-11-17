@@ -145,6 +145,7 @@ class AppConstants {
   static const String eventProducerContractAddress = '0x0000000000000000000000000000000000000000';
   static const String eventListingsContractAddress = '0x0000000000000000000000000000000000000000';
   static const String ticketingContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String avatarRegistryContractAddress = '0x0000000000000000000000000000000000000000';
 
   // Storage Keys
   static const String userPreferencesKey = 'user_preferences';

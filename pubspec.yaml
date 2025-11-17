@@ -48,6 +48,9 @@ dependencies:
   # Blockchain and Web3
   web3dart: ^2.7.2
   bip39: ^1.0.6
+  
+  # Image handling
+  image_picker: ^1.0.7
   crypto: ^3.0.3
   
   # Storage and Data

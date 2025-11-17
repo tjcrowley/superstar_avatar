@@ -50,11 +50,21 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
       final walletAddress = _blockchainService.walletAddress!;
       final avatarId = _blockchainService.generateAvatarId(walletAddress, name);
       
+      // Create avatar on blockchain
+      final imageUri = avatarImage ?? 'ipfs://default_avatar';
+      await _blockchainService.createAvatarProfile(
+        avatarId: avatarId,
+        name: name,
+        bio: bio ?? '',
+        imageUri: imageUri,
+        metadata: '',
+      );
+      
       final avatar = Avatar(
         id: avatarId,
         name: name,
         bio: bio,
-        avatarImage: avatarImage,
+        avatarImage: avatarImage ?? imageUri,
         powers: Power.defaultPowers,
         walletAddress: walletAddress,
         createdAt: DateTime.now(),
@@ -63,6 +73,7 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
 
       await _saveAvatar(avatar);
     } catch (e) {
+      debugPrint('Error creating avatar: $e');
       throw Exception('Failed to create avatar: $e');
     }
   }
@@ -237,6 +248,25 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
     try {
       if (!_blockchainService.isWalletConnected) {
         throw Exception('Wallet not connected');
+      }
+
+      // Sync avatar profile from blockchain
+      try {
+        final blockchainProfile = await _blockchainService.getAvatarProfile(state!.id);
+        if (blockchainProfile != null) {
+          // Update local avatar with blockchain data
+          final updatedAvatar = state!.copyWith(
+            name: blockchainProfile['name'] as String,
+            bio: blockchainProfile['bio'] as String?,
+            avatarImage: blockchainProfile['imageUri'] as String?,
+            lastActive: DateTime.fromMillisecondsSinceEpoch(
+              (blockchainProfile['updatedAt'] as int) * 1000,
+            ),
+          );
+          await _saveAvatar(updatedAvatar);
+        }
+      } catch (e) {
+        debugPrint('Error syncing avatar profile from blockchain: $e');
       }
 
       // Sync power levels from blockchain
