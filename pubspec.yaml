@@ -64,6 +64,9 @@ dependencies:
   dio: ^5.4.0
   connectivity_plus: ^5.0.2
   
+  # Payment Processing
+  flutter_stripe: ^10.1.1
+  
   # QR Code and Scanning
   qr_flutter: ^4.1.0
   mobile_scanner: ^3.5.6

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 
 import 'constants/app_constants.dart';
 import 'screens/onboarding_screen.dart';
@@ -20,6 +21,11 @@ void main() async {
   await SharedPreferences.getInstance();
   await Hive.initFlutter();
   await BlockchainService().initialize();
+  
+  // Initialize Stripe
+  Stripe.publishableKey = AppConstants.stripePublishableKey;
+  Stripe.merchantIdentifier = 'merchant.com.superstaravatar';
+  await Stripe.instance.applySettings();
   
   runApp(const ProviderScope(child: SuperstarAvatarApp()));
 }

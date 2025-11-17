@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/blockchain_service.dart';
 import '../services/secure_storage_service.dart';
+import '../services/faucet_service.dart';
 import '../constants/app_constants.dart';
 import 'avatar_provider.dart';
 
@@ -10,6 +11,7 @@ import 'avatar_provider.dart';
 class WalletNotifier extends StateNotifier<bool> {
   final BlockchainService _blockchainService = BlockchainService();
   final SecureStorageService _secureStorage = SecureStorageService();
+  final FaucetService _faucetService = FaucetService();
   final SharedPreferences _prefs;
 
   WalletNotifier(this._prefs) : super(false) {

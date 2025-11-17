@@ -1,10 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_constants.dart';
 import '../services/blockchain_service.dart';
+import '../services/faucet_service.dart';
+import '../services/payment_service.dart';
 import '../providers/wallet_provider.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/secure_text_field.dart';
+import 'payment_screen.dart';
 
 class WalletSetupScreen extends ConsumerStatefulWidget {
   const WalletSetupScreen({super.key});
@@ -21,6 +26,10 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
   bool _showMnemonic = false;
   String? _generatedMnemonic;
   String? _walletAddress;
+  bool _isRequestingFunding = false;
+  bool _hasCompletedPayment = false;
+  final FaucetService _faucetService = FaucetService();
+  final PaymentService _paymentService = PaymentService();
 
   @override
   void dispose() {
@@ -42,21 +51,52 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
         throw Exception('Failed to get wallet address after creation');
       }
 
-      // Update state to show mnemonic (don't connect yet - user needs to confirm they saved it)
+      // Store wallet info temporarily
       setState(() {
         _generatedMnemonic = mnemonic;
         _walletAddress = walletAddress;
-        _showMnemonic = true;
         _isCreatingWallet = false;
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Identity created successfully! Please save your recovery phrase.'),
-            backgroundColor: AppConstants.successColor,
+      // Navigate to payment screen FIRST (before showing mnemonic)
+      final paymentSuccess = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            walletAddress: walletAddress,
+            onPaymentSuccess: () {
+              setState(() {
+                _hasCompletedPayment = true;
+              });
+            },
           ),
-        );
+        ),
+      );
+
+      if (paymentSuccess == true) {
+        // Payment successful, now show mnemonic
+        setState(() {
+          _hasCompletedPayment = true;
+          _showMnemonic = true;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment successful! Please save your recovery phrase.'),
+              backgroundColor: AppConstants.successColor,
+            ),
+          );
+        }
+      } else {
+        // Payment cancelled or failed
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment required to continue. Your wallet has been created.'),
+              backgroundColor: AppConstants.warningColor,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -69,6 +109,67 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
       }
       setState(() {
         _isCreatingWallet = false;
+      });
+    }
+  }
+
+  /// Request initial MATIC funding for new wallet
+  Future<void> _requestInitialFunding(String walletAddress) async {
+    setState(() {
+      _isRequestingFunding = true;
+    });
+
+    try {
+      // Try to request testnet MATIC automatically
+      final success = await _faucetService.requestTestnetMatic(
+        walletAddress: walletAddress,
+        network: 'amoy',
+      );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Testnet MATIC requested! It may take a few minutes to arrive.'),
+              backgroundColor: AppConstants.successColor,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        } else {
+          // Show instructions for manual faucet request
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Get testnet MATIC from the faucet to start using your identity.'),
+              backgroundColor: AppConstants.warningColor,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open Faucet',
+                textColor: Colors.white,
+                onPressed: () async {
+                  final url = Uri.parse(_faucetService.getFaucetUrl(network: 'amoy'));
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalBrowser);
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error requesting initial funding: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Could not auto-request MATIC. Please use the faucet manually.'),
+            backgroundColor: AppConstants.warningColor,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isRequestingFunding = false;
       });
     }
   }

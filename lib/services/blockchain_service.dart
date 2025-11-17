@@ -445,7 +445,7 @@ class BlockchainService {
     }
   }
 
-  Future<String> createWallet() async {
+  Future<String> createWallet({bool requestInitialFunding = true}) async {
     try {
       final mnemonic = bip39.generateMnemonic();
       final seed = bip39.mnemonicToSeed(mnemonic);
@@ -453,6 +453,12 @@ class BlockchainService {
       
       _credentials = EthPrivateKey(privateKey);
       _walletAddress = _credentials.address.hex;
+      
+      // Request initial funding if enabled (for testnet)
+      if (requestInitialFunding && _walletAddress != null) {
+        // This will be handled by the wallet provider after wallet creation
+        // to avoid blocking the wallet creation process
+      }
       
       return mnemonic;
     } catch (e) {

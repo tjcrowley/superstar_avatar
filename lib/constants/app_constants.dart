@@ -157,6 +157,23 @@ class AppConstants {
   // API Endpoints (for centralized components)
   static const String baseApiUrl = 'https://api.superstaravatar.com';
   static const String eventApiUrl = '$baseApiUrl/events';
+  
+  // Backend API Configuration
+  static const String backendApiUrl = String.fromEnvironment(
+    'BACKEND_API_URL',
+    defaultValue: 'http://localhost:3000',
+  );
+  
+  // Stripe Configuration
+  static const String stripePublishableKey = String.fromEnvironment(
+    'STRIPE_PUBLISHABLE_KEY',
+    defaultValue: 'pk_test_your_stripe_publishable_key_here',
+  );
+  
+  // Payment Configuration
+  static const double minMaticPurchase = 0.01;
+  static const double maxMaticPurchase = 10.0;
+  static const double defaultMaticPurchase = 0.1;
   static const String activityApiUrl = '$baseApiUrl/activities';
   static const String houseApiUrl = '$baseApiUrl/houses';
 
