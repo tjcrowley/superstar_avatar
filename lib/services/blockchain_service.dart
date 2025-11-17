@@ -332,6 +332,7 @@ class BlockchainService {
           {"name": "name", "type": "string"},
           {"name": "bio", "type": "string"},
           {"name": "imageUri", "type": "string"},
+          {"name": "houseId", "type": "string"},
           {"name": "metadata", "type": "string"}
         ],
         "name": "createAvatar",
@@ -375,6 +376,8 @@ class BlockchainService {
               {"name": "createdAt", "type": "uint256"},
               {"name": "updatedAt", "type": "uint256"},
               {"name": "isActive", "type": "bool"},
+              {"name": "isPrimary", "type": "bool"},
+              {"name": "houseId", "type": "string"},
               {"name": "metadata", "type": "string"}
             ],
             "name": "",
@@ -386,8 +389,22 @@ class BlockchainService {
       },
       {
         "inputs": [{"name": "walletAddress", "type": "address"}],
-        "name": "getAvatarIdByAddress",
+        "name": "getAvatarIdsByAddress",
+        "outputs": [{"name": "", "type": "string[]"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "walletAddress", "type": "address"}],
+        "name": "getPrimaryAvatarIdByAddress",
         "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "walletAddress", "type": "address"}],
+        "name": "getAvatarCountByAddress",
+        "outputs": [{"name": "", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function"
       },
@@ -1298,13 +1315,14 @@ class BlockchainService {
     required String name,
     required String bio,
     required String imageUri,
+    String houseId = "",
     String metadata = "",
   }) async {
-    if (!isWalletConnected) throw Exception('Wallet not connected');
+    if (!isWalletConnected) throw Exception('Identity not connected');
 
     try {
       final function = _avatarRegistryContract.function('createAvatar');
-      final params = [avatarId, name, bio, imageUri, metadata];
+      final params = [avatarId, name, bio, imageUri, houseId, metadata];
 
       final transaction = Transaction.callContract(
         contract: _avatarRegistryContract,
@@ -1410,7 +1428,9 @@ class BlockchainService {
         'createdAt': (tuple[5] as BigInt).toInt(),
         'updatedAt': (tuple[6] as BigInt).toInt(),
         'isActive': tuple[7] as bool,
-        'metadata': tuple[8] as String,
+        'isPrimary': tuple[8] as bool,
+        'houseId': tuple[9] as String,
+        'metadata': tuple[10] as String,
       };
     } catch (e) {
       debugPrint('Error getting avatar profile: $e');
@@ -1418,10 +1438,29 @@ class BlockchainService {
     }
   }
 
-  /// Get avatar ID by wallet address
-  Future<String?> getAvatarIdByAddress(String walletAddress) async {
+  /// Get all avatar IDs by wallet address
+  Future<List<String>> getAvatarIdsByAddress(String walletAddress) async {
     try {
-      final function = _avatarRegistryContract.function('getAvatarIdByAddress');
+      final function = _avatarRegistryContract.function('getAvatarIdsByAddress');
+      final params = [EthereumAddress.fromHex(walletAddress)];
+
+      final result = await _client.call(
+        contract: _avatarRegistryContract,
+        function: function,
+        params: params,
+      );
+
+      return (result[0] as List<dynamic>).map((e) => e.toString()).toList();
+    } catch (e) {
+      debugPrint('Error getting avatar IDs by address: $e');
+      return [];
+    }
+  }
+
+  /// Get primary avatar ID by wallet address
+  Future<String?> getPrimaryAvatarIdByAddress(String walletAddress) async {
+    try {
+      final function = _avatarRegistryContract.function('getPrimaryAvatarIdByAddress');
       final params = [EthereumAddress.fromHex(walletAddress)];
 
       final result = await _client.call(
@@ -1433,8 +1472,27 @@ class BlockchainService {
       final avatarId = result[0] as String;
       return avatarId.isEmpty ? null : avatarId;
     } catch (e) {
-      debugPrint('Error getting avatar ID by address: $e');
+      debugPrint('Error getting primary avatar ID by address: $e');
       return null;
+    }
+  }
+
+  /// Get avatar count by wallet address
+  Future<int> getAvatarCountByAddress(String walletAddress) async {
+    try {
+      final function = _avatarRegistryContract.function('getAvatarCountByAddress');
+      final params = [EthereumAddress.fromHex(walletAddress)];
+
+      final result = await _client.call(
+        contract: _avatarRegistryContract,
+        function: function,
+        params: params,
+      );
+
+      return (result[0] as BigInt).toInt();
+    } catch (e) {
+      debugPrint('Error getting avatar count by address: $e');
+      return 0;
     }
   }
 

@@ -34,7 +34,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     });
 
     try {
-      await ref.read(avatarProvider.notifier).createAvatar(
+      await ref.read(avatarProvider.notifier).createPrimaryAvatar(
         name: _nameController.text.trim(),
         bio: _bioController.text.trim().isNotEmpty ? _bioController.text.trim() : null,
       );

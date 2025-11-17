@@ -11,6 +11,7 @@ class Avatar {
   final int totalExperience;
   final List<String> badges;
   final bool isSuperstarAvatar;
+  final bool isPrimary; // True if this is the primary (first) avatar
   final DateTime createdAt;
   final DateTime lastActive;
   final String? walletAddress;
@@ -27,6 +28,7 @@ class Avatar {
     this.totalExperience = 0,
     this.badges = const [],
     this.isSuperstarAvatar = false,
+    this.isPrimary = false,
     required this.createdAt,
     required this.lastActive,
     this.walletAddress,
@@ -47,6 +49,7 @@ class Avatar {
       totalExperience: json['totalExperience'] ?? 0,
       badges: List<String>.from(json['badges'] ?? []),
       isSuperstarAvatar: json['isSuperstarAvatar'] ?? false,
+      isPrimary: json['isPrimary'] ?? false,
       createdAt: DateTime.parse(json['createdAt']),
       lastActive: DateTime.parse(json['lastActive']),
       walletAddress: json['walletAddress'],
@@ -66,6 +69,7 @@ class Avatar {
       'totalExperience': totalExperience,
       'badges': badges,
       'isSuperstarAvatar': isSuperstarAvatar,
+      'isPrimary': isPrimary,
       'createdAt': createdAt.toIso8601String(),
       'lastActive': lastActive.toIso8601String(),
       'walletAddress': walletAddress,
@@ -84,6 +88,7 @@ class Avatar {
     int? totalExperience,
     List<String>? badges,
     bool? isSuperstarAvatar,
+    bool? isPrimary,
     DateTime? createdAt,
     DateTime? lastActive,
     String? walletAddress,
@@ -100,6 +105,7 @@ class Avatar {
       totalExperience: totalExperience ?? this.totalExperience,
       badges: badges ?? this.badges,
       isSuperstarAvatar: isSuperstarAvatar ?? this.isSuperstarAvatar,
+      isPrimary: isPrimary ?? this.isPrimary,
       createdAt: createdAt ?? this.createdAt,
       lastActive: lastActive ?? this.lastActive,
       walletAddress: walletAddress ?? this.walletAddress,

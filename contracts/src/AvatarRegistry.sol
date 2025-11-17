@@ -22,12 +22,14 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
         uint256 createdAt;             // Creation timestamp
         uint256 updatedAt;             // Last update timestamp
         bool isActive;                 // Active status
+        bool isPrimary;                // True if this is the primary (first) avatar
+        string houseId;                // House ID (required for non-primary avatars)
         string metadata;               // Additional JSON metadata
     }
 
     // Mappings
     mapping(string => AvatarProfile) public avatars;              // avatarId => AvatarProfile
-    mapping(address => string) public addressToAvatarId;         // walletAddress => avatarId
+    mapping(address => string[]) public addressToAvatarIds;      // walletAddress => avatarId[]
     mapping(string => bool) public avatarIdExists;              // avatarId => exists
 
     // Events
@@ -36,6 +38,8 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
         address indexed walletAddress,
         string name,
         string imageUri,
+        bool isPrimary,
+        string houseId,
         uint256 timestamp
     );
 
@@ -94,6 +98,7 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
      * @param name Avatar name
      * @param bio Avatar biography
      * @param imageUri IPFS hash or image URI
+     * @param houseId House ID (required for non-primary avatars, empty for primary)
      * @param metadata Additional JSON metadata
      */
     function createAvatar(
@@ -101,14 +106,19 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
         string memory name,
         string memory bio,
         string memory imageUri,
+        string memory houseId,
         string memory metadata
     ) external validAvatarId(avatarId) nonReentrant {
         require(!avatarIdExists[avatarId], "Avatar ID already exists");
         require(bytes(name).length > 0, "Name cannot be empty");
-        require(
-            bytes(addressToAvatarId[msg.sender]).length == 0,
-            "Wallet already has an avatar"
-        );
+        
+        // Check if this is the first avatar (primary) or additional avatar
+        bool isPrimary = addressToAvatarIds[msg.sender].length == 0;
+        
+        // If not primary, houseId is required
+        if (!isPrimary) {
+            require(bytes(houseId).length > 0, "House ID required for additional avatars");
+        }
 
         AvatarProfile memory newAvatar = AvatarProfile({
             id: avatarId,
@@ -119,11 +129,13 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
             createdAt: block.timestamp,
             updatedAt: block.timestamp,
             isActive: true,
+            isPrimary: isPrimary,
+            houseId: houseId,
             metadata: metadata
         });
 
         avatars[avatarId] = newAvatar;
-        addressToAvatarId[msg.sender] = avatarId;
+        addressToAvatarIds[msg.sender].push(avatarId);
         avatarIdExists[avatarId] = true;
 
         emit AvatarCreated(
@@ -131,6 +143,8 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
             msg.sender,
             name,
             imageUri,
+            isPrimary,
+            houseId,
             block.timestamp
         );
     }
@@ -219,16 +233,55 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
     }
 
     /**
-     * @dev Get avatar ID by wallet address
+     * @dev Get all avatar IDs for a wallet address
      * @param walletAddress Wallet address
-     * @return avatarId Avatar ID (empty string if not found)
+     * @return avatarIds Array of avatar IDs
      */
-    function getAvatarIdByAddress(address walletAddress)
+    function getAvatarIdsByAddress(address walletAddress)
+        external
+        view
+        returns (string[] memory)
+    {
+        return addressToAvatarIds[walletAddress];
+    }
+
+    /**
+     * @dev Get primary avatar ID for a wallet address
+     * @param walletAddress Wallet address
+     * @return avatarId Primary avatar ID (empty string if not found)
+     */
+    function getPrimaryAvatarIdByAddress(address walletAddress)
         external
         view
         returns (string memory)
     {
-        return addressToAvatarId[walletAddress];
+        string[] memory avatarIds = addressToAvatarIds[walletAddress];
+        if (avatarIds.length == 0) {
+            return "";
+        }
+        
+        // Find primary avatar
+        for (uint256 i = 0; i < avatarIds.length; i++) {
+            if (avatars[avatarIds[i]].isPrimary) {
+                return avatarIds[i];
+            }
+        }
+        
+        // If no primary found, return first avatar (for backward compatibility)
+        return avatarIds.length > 0 ? avatarIds[0] : "";
+    }
+
+    /**
+     * @dev Get avatar count for a wallet address
+     * @param walletAddress Wallet address
+     * @return count Number of avatars
+     */
+    function getAvatarCountByAddress(address walletAddress)
+        external
+        view
+        returns (uint256)
+    {
+        return addressToAvatarIds[walletAddress].length;
     }
 
     /**

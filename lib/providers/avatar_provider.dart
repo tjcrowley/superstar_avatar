@@ -7,56 +7,130 @@ import '../models/power.dart';
 import '../services/blockchain_service.dart';
 import '../constants/app_constants.dart';
 
-class AvatarNotifier extends StateNotifier<Avatar?> {
+/// State for managing multiple avatars
+class AvatarsState {
+  final List<Avatar> avatars;
+  final String? selectedAvatarId;
+
+  AvatarsState({
+    required this.avatars,
+    this.selectedAvatarId,
+  });
+
+  Avatar? get selectedAvatar {
+    if (selectedAvatarId == null) return avatars.isNotEmpty ? avatars.first : null;
+    return avatars.firstWhere(
+      (avatar) => avatar.id == selectedAvatarId,
+      orElse: () => avatars.isNotEmpty ? avatars.first : Avatar(
+        id: '',
+        name: '',
+        powers: [],
+        createdAt: DateTime.now(),
+        lastActive: DateTime.now(),
+      ),
+    );
+  }
+
+  Avatar? get primaryAvatar => avatars.firstWhere(
+    (avatar) => avatar.isPrimary,
+    orElse: () => avatars.isNotEmpty ? avatars.first : null,
+  );
+
+  bool get hasAvatar => avatars.isNotEmpty;
+  bool get hasPrimaryAvatar => primaryAvatar != null;
+
+  AvatarsState copyWith({
+    List<Avatar>? avatars,
+    String? selectedAvatarId,
+  }) {
+    return AvatarsState(
+      avatars: avatars ?? this.avatars,
+      selectedAvatarId: selectedAvatarId ?? this.selectedAvatarId,
+    );
+  }
+}
+
+class AvatarNotifier extends StateNotifier<AvatarsState> {
   final BlockchainService _blockchainService = BlockchainService();
   final SharedPreferences _prefs;
 
-  AvatarNotifier(this._prefs) : super(null) {
-    _loadAvatar();
+  AvatarNotifier(this._prefs) : super(AvatarsState(avatars: [])) {
+    _loadAvatars();
   }
 
-  Future<void> _loadAvatar() async {
+  Future<void> _loadAvatars() async {
     try {
-      final avatarJson = _prefs.getString(AppConstants.avatarDataKey);
-      if (avatarJson != null) {
-        final avatarData = jsonDecode(avatarJson);
-        state = Avatar.fromJson(avatarData);
+      // Load avatars list
+      final avatarsJson = _prefs.getString('${AppConstants.avatarDataKey}_list');
+      if (avatarsJson != null) {
+        final avatarsData = jsonDecode(avatarsJson) as List;
+        final loadedAvatars = avatarsData
+            .map((data) => Avatar.fromJson(data as Map<String, dynamic>))
+            .toList();
+        
+        final selectedId = _prefs.getString('${AppConstants.avatarDataKey}_selected');
+        
+        state = AvatarsState(
+          avatars: loadedAvatars,
+          selectedAvatarId: selectedId,
+        );
+      } else {
+        // Try to load single avatar for backward compatibility
+        final avatarJson = _prefs.getString(AppConstants.avatarDataKey);
+        if (avatarJson != null) {
+          final avatarData = jsonDecode(avatarJson);
+          final avatar = Avatar.fromJson(avatarData);
+          state = AvatarsState(
+            avatars: [avatar],
+            selectedAvatarId: avatar.id,
+          );
+        }
       }
     } catch (e) {
-      debugPrint('Error loading avatar: $e');
+      debugPrint('Error loading avatars: $e');
     }
   }
 
-  Future<void> _saveAvatar(Avatar avatar) async {
+  Future<void> _saveAvatars() async {
     try {
-      final avatarJson = jsonEncode(avatar.toJson());
-      await _prefs.setString(AppConstants.avatarDataKey, avatarJson);
-      state = avatar;
+      final avatarsJson = jsonEncode(
+        state.avatars.map((avatar) => avatar.toJson()).toList(),
+      );
+      await _prefs.setString('${AppConstants.avatarDataKey}_list', avatarsJson);
+      if (state.selectedAvatarId != null) {
+        await _prefs.setString('${AppConstants.avatarDataKey}_selected', state.selectedAvatarId!);
+      }
     } catch (e) {
-      debugPrint('Error saving avatar: $e');
+      debugPrint('Error saving avatars: $e');
     }
   }
 
-  Future<void> createAvatar({
+  /// Create primary avatar (first avatar, no house required)
+  Future<void> createPrimaryAvatar({
     required String name,
     String? bio,
     String? avatarImage,
   }) async {
     try {
       if (!_blockchainService.isWalletConnected) {
-        throw Exception('Wallet not connected');
+        throw Exception('Identity not connected');
+      }
+
+      if (state.hasPrimaryAvatar) {
+        throw Exception('Primary avatar already exists');
       }
 
       final walletAddress = _blockchainService.walletAddress!;
       final avatarId = _blockchainService.generateAvatarId(walletAddress, name);
       
-      // Create avatar on blockchain
+      // Create avatar on blockchain (no houseId for primary)
       final imageUri = avatarImage ?? 'ipfs://default_avatar';
       await _blockchainService.createAvatarProfile(
         avatarId: avatarId,
         name: name,
         bio: bio ?? '',
         imageUri: imageUri,
+        houseId: '', // Empty for primary avatar
         metadata: '',
       );
       
@@ -67,15 +141,99 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
         avatarImage: avatarImage ?? imageUri,
         powers: Power.defaultPowers,
         walletAddress: walletAddress,
+        isPrimary: true,
         createdAt: DateTime.now(),
         lastActive: DateTime.now(),
       );
 
-      await _saveAvatar(avatar);
+      final updatedAvatars = [...state.avatars, avatar];
+      state = state.copyWith(
+        avatars: updatedAvatars,
+        selectedAvatarId: avatarId,
+      );
+      await _saveAvatars();
     } catch (e) {
-      debugPrint('Error creating avatar: $e');
-      throw Exception('Failed to create avatar: $e');
+      debugPrint('Error creating primary avatar: $e');
+      throw Exception('Failed to create primary avatar: $e');
     }
+  }
+
+  /// Create additional avatar (must be associated with a house)
+  Future<void> createHouseAvatar({
+    required String name,
+    required String houseId,
+    required String houseName,
+    String? bio,
+    String? avatarImage,
+  }) async {
+    try {
+      if (!_blockchainService.isWalletConnected) {
+        throw Exception('Identity not connected');
+      }
+
+      if (!state.hasPrimaryAvatar) {
+        throw Exception('Primary avatar must be created first');
+      }
+
+      if (houseId.isEmpty) {
+        throw Exception('House ID is required for additional avatars');
+      }
+
+      final walletAddress = _blockchainService.walletAddress!;
+      final avatarId = _blockchainService.generateAvatarId(walletAddress, name);
+      
+      // Create avatar on blockchain with houseId
+      final imageUri = avatarImage ?? 'ipfs://default_avatar';
+      await _blockchainService.createAvatarProfile(
+        avatarId: avatarId,
+        name: name,
+        bio: bio ?? '',
+        imageUri: imageUri,
+        houseId: houseId,
+        metadata: '',
+      );
+      
+      // Join house with this avatar
+      await _blockchainService.joinHouse(
+        houseId: houseId,
+        avatarId: avatarId,
+        avatarName: name,
+      );
+      
+      final avatar = Avatar(
+        id: avatarId,
+        name: name,
+        bio: bio,
+        avatarImage: avatarImage ?? imageUri,
+        powers: Power.defaultPowers,
+        houseId: houseId,
+        houseName: houseName,
+        walletAddress: walletAddress,
+        isPrimary: false,
+        createdAt: DateTime.now(),
+        lastActive: DateTime.now(),
+      );
+
+      final updatedAvatars = [...state.avatars, avatar];
+      state = state.copyWith(
+        avatars: updatedAvatars,
+        selectedAvatarId: avatarId,
+      );
+      await _saveAvatars();
+    } catch (e) {
+      debugPrint('Error creating house avatar: $e');
+      throw Exception('Failed to create house avatar: $e');
+    }
+  }
+
+  /// Select an avatar to use
+  Future<void> selectAvatar(String avatarId) async {
+    if (!state.avatars.any((avatar) => avatar.id == avatarId)) {
+      throw Exception('Avatar not found');
+    }
+    
+    state = state.copyWith(selectedAvatarId: avatarId);
+    await _prefs.setString('${AppConstants.avatarDataKey}_selected', avatarId);
   }
 
   Future<void> updateAvatar({
@@ -100,10 +258,11 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
   }
 
   Future<void> addExperienceToPower(PowerType powerType, int experience) async {
-    if (state == null) throw Exception('No avatar found');
+    if (state.selectedAvatar == null) throw Exception('No avatar selected');
 
     try {
-      final currentPower = state!.getPowerByType(powerType);
+      final currentAvatar = state.selectedAvatar!;
+      final currentPower = currentAvatar.getPowerByType(powerType);
       if (currentPower == null) throw Exception('Power not found');
 
       int newExperience = currentPower.experience + experience;
@@ -124,17 +283,22 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
         lastUpdated: DateTime.now(),
       );
 
-      final updatedPowers = state!.powers.map((power) {
+      final updatedPowers = currentAvatar.powers.map((power) {
         return power.type == powerType ? updatedPower : power;
       }).toList();
 
-      final updatedAvatar = state!.copyWith(
+      final updatedAvatar = currentAvatar.copyWith(
         powers: updatedPowers,
-        totalExperience: state!.totalExperience + experience,
+        totalExperience: currentAvatar.totalExperience + experience,
         lastActive: DateTime.now(),
       );
 
-      await _saveAvatar(updatedAvatar);
+      final updatedAvatars = state.avatars.map((avatar) {
+        return avatar.id == updatedAvatar.id ? updatedAvatar : avatar;
+      }).toList();
+
+      state = state.copyWith(avatars: updatedAvatars);
+      await _saveAvatars();
 
       // Check if avatar can become Superstar Avatar
       if (updatedAvatar.canBecomeSuperstarAvatar) {
@@ -152,67 +316,102 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
         lastActive: DateTime.now(),
       );
 
-      await _saveAvatar(superstarAvatar);
+      final updatedAvatars = state.avatars.map((a) {
+        return a.id == avatar.id ? superstarAvatar : a;
+      }).toList();
+
+      state = state.copyWith(avatars: updatedAvatars);
+      await _saveAvatars();
     } catch (e) {
       throw Exception('Failed to promote to Superstar Avatar: $e');
     }
   }
 
   Future<void> joinHouse(String houseId, String houseName) async {
-    if (state == null) throw Exception('No avatar found');
+    if (state.selectedAvatar == null) throw Exception('No avatar selected');
 
     try {
       if (!_blockchainService.isWalletConnected) {
-        throw Exception('Wallet not connected');
+        throw Exception('Identity not connected');
+      }
+
+      final currentAvatar = state.selectedAvatar!;
+      
+      // Only primary avatar can join house (additional avatars are created with house)
+      if (!currentAvatar.isPrimary) {
+        throw Exception('Only primary avatar can join a house. Create a new avatar for this house.');
       }
 
       // Call blockchain to join house
       await _blockchainService.joinHouse(
         houseId: houseId,
-        avatarId: state!.id,
-        avatarName: state!.name,
+        avatarId: currentAvatar.id,
+        avatarName: currentAvatar.name,
       );
 
-      final updatedAvatar = state!.copyWith(
+      final updatedAvatar = currentAvatar.copyWith(
         houseId: houseId,
         houseName: houseName,
         lastActive: DateTime.now(),
       );
 
-      await _saveAvatar(updatedAvatar);
+      final updatedAvatars = state.avatars.map((avatar) {
+        return avatar.id == updatedAvatar.id ? updatedAvatar : avatar;
+      }).toList();
+
+      state = state.copyWith(avatars: updatedAvatars);
+      await _saveAvatars();
     } catch (e) {
       throw Exception('Failed to join house: $e');
     }
   }
 
   Future<void> leaveHouse() async {
-    if (state == null) throw Exception('No avatar found');
+    if (state.selectedAvatar == null) throw Exception('No avatar selected');
 
     try {
-      final updatedAvatar = state!.copyWith(
+      final currentAvatar = state.selectedAvatar!;
+      
+      // Non-primary avatars cannot leave house (they are bound to it)
+      if (!currentAvatar.isPrimary) {
+        throw Exception('House-bound avatars cannot leave their house');
+      }
+
+      final updatedAvatar = currentAvatar.copyWith(
         houseId: null,
         houseName: null,
         lastActive: DateTime.now(),
       );
 
-      await _saveAvatar(updatedAvatar);
+      final updatedAvatars = state.avatars.map((avatar) {
+        return avatar.id == updatedAvatar.id ? updatedAvatar : avatar;
+      }).toList();
+
+      state = state.copyWith(avatars: updatedAvatars);
+      await _saveAvatars();
     } catch (e) {
       throw Exception('Failed to leave house: $e');
     }
   }
 
   Future<void> addBadge(String badge) async {
-    if (state == null) throw Exception('No avatar found');
+    if (state.selectedAvatar == null) throw Exception('No avatar selected');
 
     try {
-      if (!state!.badges.contains(badge)) {
-        final updatedBadges = [...state!.badges, badge];
-        final updatedAvatar = state!.copyWith(
+      final currentAvatar = state.selectedAvatar!;
+      if (!currentAvatar.badges.contains(badge)) {
+        final updatedBadges = [...currentAvatar.badges, badge];
+        final updatedAvatar = currentAvatar.copyWith(
           badges: updatedBadges,
           lastActive: DateTime.now(),
         );
 
-        await _saveAvatar(updatedAvatar);
+        final updatedAvatars = state.avatars.map((avatar) {
+          return avatar.id == updatedAvatar.id ? updatedAvatar : avatar;
+        }).toList();
+
+        state = state.copyWith(avatars: updatedAvatars);
+        await _saveAvatars();
       }
     } catch (e) {
       throw Exception('Failed to add badge: $e');
@@ -224,15 +423,15 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
     required int experience,
     required String verifierId,
   }) async {
-    if (state == null) throw Exception('No avatar found');
+    if (state.selectedAvatar == null) throw Exception('No avatar selected');
 
     try {
       if (!_blockchainService.isWalletConnected) {
-        throw Exception('Wallet not connected');
+        throw Exception('Identity not connected');
       }
 
       await _blockchainService.verifyPower(
-        avatarId: state!.id,
+        avatarId: state.selectedAvatar!.id,
         powerType: powerType.index,
         experience: experience,
         metadata: 'Verified by: $verifierId',
@@ -243,95 +442,134 @@ class AvatarNotifier extends StateNotifier<Avatar?> {
   }
 
   Future<void> syncWithBlockchain() async {
-    if (state == null) return;
+    if (state.avatars.isEmpty) return;
 
     try {
       if (!_blockchainService.isWalletConnected) {
-        throw Exception('Wallet not connected');
+        throw Exception('Identity not connected');
       }
 
-      // Sync avatar profile from blockchain
-      try {
-        final blockchainProfile = await _blockchainService.getAvatarProfile(state!.id);
-        if (blockchainProfile != null) {
-          // Update local avatar with blockchain data
-          final updatedAvatar = state!.copyWith(
-            name: blockchainProfile['name'] as String,
-            bio: blockchainProfile['bio'] as String?,
-            avatarImage: blockchainProfile['imageUri'] as String?,
-            lastActive: DateTime.fromMillisecondsSinceEpoch(
-              (blockchainProfile['updatedAt'] as int) * 1000,
+      // Sync all avatars from blockchain
+      final walletAddress = _blockchainService.walletAddress!;
+      final avatarIds = await _blockchainService.getAvatarIdsByAddress(walletAddress);
+      
+      final updatedAvatars = <Avatar>[];
+      
+      for (final avatarId in avatarIds) {
+        try {
+          // Get existing avatar or create new one
+          final existingAvatar = state.avatars.firstWhere(
+            (avatar) => avatar.id == avatarId,
+            orElse: () => Avatar(
+              id: avatarId,
+              name: '',
+              powers: Power.defaultPowers,
+              createdAt: DateTime.now(),
+              lastActive: DateTime.now(),
             ),
           );
-          await _saveAvatar(updatedAvatar);
-        }
-      } catch (e) {
-        debugPrint('Error syncing avatar profile from blockchain: $e');
-      }
 
-      // Sync power levels from blockchain
-      final updatedPowers = <Power>[];
-      for (final power in state!.powers) {
-        try {
-          final powerData = await _blockchainService.getPowerData(
-            state!.id,
-            power.type.index,
-          );
-          final blockchainLevel = powerData['level'] as int;
+          // Sync avatar profile from blockchain
+          final blockchainProfile = await _blockchainService.getAvatarProfile(avatarId);
+          if (blockchainProfile != null) {
+            // Sync power levels from blockchain
+            final updatedPowers = <Power>[];
+            for (final power in existingAvatar.powers) {
+              try {
+                final powerData = await _blockchainService.getPowerData(
+                  avatarId,
+                  power.type.index,
+                );
+                final blockchainLevel = powerData['level'] as int;
 
-          if (blockchainLevel > power.level) {
-            updatedPowers.add(power.copyWith(
-              level: blockchainLevel,
-              lastUpdated: DateTime.now(),
-            ));
+                if (blockchainLevel > power.level) {
+                  updatedPowers.add(power.copyWith(
+                    level: blockchainLevel,
+                    lastUpdated: DateTime.now(),
+                  ));
+                } else {
+                  updatedPowers.add(power);
+                }
+              } catch (e) {
+                updatedPowers.add(power);
+              }
+            }
+
+            // Sync house membership
+            final houseId = await _blockchainService.getAvatarHouse(avatarId);
+
+            final updatedAvatar = existingAvatar.copyWith(
+              name: blockchainProfile['name'] as String,
+              bio: blockchainProfile['bio'] as String?,
+              avatarImage: blockchainProfile['imageUri'] as String?,
+              powers: updatedPowers,
+              houseId: houseId.isNotEmpty ? houseId : null,
+              isPrimary: blockchainProfile['isPrimary'] as bool? ?? false,
+              lastActive: DateTime.fromMillisecondsSinceEpoch(
+                (blockchainProfile['updatedAt'] as int) * 1000,
+              ),
+            );
+            
+            updatedAvatars.add(updatedAvatar);
           } else {
-            updatedPowers.add(power);
+            updatedAvatars.add(existingAvatar);
           }
         } catch (e) {
-          // If blockchain call fails, keep existing power
-          updatedPowers.add(power);
+          debugPrint('Error syncing avatar $avatarId: $e');
+          // Keep existing avatar if sync fails
+          final existing = state.avatars.firstWhere(
+            (avatar) => avatar.id == avatarId,
+            orElse: () => Avatar(
+              id: avatarId,
+              name: '',
+              powers: Power.defaultPowers,
+              createdAt: DateTime.now(),
+              lastActive: DateTime.now(),
+            ),
+          );
+          updatedAvatars.add(existing);
         }
       }
 
-      // Sync house membership
-      final houseId = await _blockchainService.getAvatarHouse(state!.id);
-
-      final updatedAvatar = state!.copyWith(
-        powers: updatedPowers,
-        houseId: houseId,
-        lastActive: DateTime.now(),
-      );
-
-      await _saveAvatar(updatedAvatar);
+      state = state.copyWith(avatars: updatedAvatars);
+      await _saveAvatars();
     } catch (e) {
       debugPrint('Error syncing with blockchain: $e');
     }
   }
 
-  Future<void> clearAvatar() async {
+  Future<void> clearAvatars() async {
     try {
-      await _prefs.remove(AppConstants.avatarDataKey);
-      state = null;
+      await _prefs.remove('${AppConstants.avatarDataKey}_list');
+      await _prefs.remove('${AppConstants.avatarDataKey}_selected');
+      await _prefs.remove(AppConstants.avatarDataKey); // Remove old single avatar key
+      state = AvatarsState(avatars: []);
     } catch (e) {
-      throw Exception('Failed to clear avatar: $e');
+      throw Exception('Failed to clear avatars: $e');
     }
   }
 
   // Getters for easy access to avatar data
-  bool get hasAvatar => state != null;
-  bool get isSuperstarAvatar => state?.isSuperstarAvatar ?? false;
-  bool get canBecomeSuperstarAvatar => state?.canBecomeSuperstarAvatar ?? false;
-  int get totalLevel => state?.totalLevel ?? 0;
-  int get totalExperience => state?.totalExperience ?? 0;
-  String? get currentHouseId => state?.houseId;
-  String? get currentHouseName => state?.houseName;
-  List<String> get badges => state?.badges ?? [];
-  List<Power> get powers => state?.powers ?? [];
+  bool get hasAvatar => state.hasAvatar;
+  bool get hasPrimaryAvatar => state.hasPrimaryAvatar;
+  Avatar? get selectedAvatar => state.selectedAvatar;
+  Avatar? get primaryAvatar => state.primaryAvatar;
+  List<Avatar> get allAvatars => state.avatars;
+  List<Avatar> get houseAvatars => state.avatars.where((a) => !a.isPrimary && a.houseId != null).toList();
+  
+  bool get isSuperstarAvatar => state.selectedAvatar?.isSuperstarAvatar ?? false;
+  bool get canBecomeSuperstarAvatar => state.selectedAvatar?.canBecomeSuperstarAvatar ?? false;
+  int get totalLevel => state.selectedAvatar?.totalLevel ?? 0;
+  int get totalExperience => state.selectedAvatar?.totalExperience ?? 0;
+  String? get currentHouseId => state.selectedAvatar?.houseId;
+  String? get currentHouseName => state.selectedAvatar?.houseName;
+  List<String> get badges => state.selectedAvatar?.badges ?? [];
+  List<Power> get powers => state.selectedAvatar?.powers ?? [];
 
-  Power? getPowerByType(PowerType type) => state?.getPowerByType(type);
-  int getPowerLevel(PowerType type) => state?.getPowerLevel(type) ?? 0;
-  int getPowerExperience(PowerType type) => state?.getPowerExperience(type) ?? 0;
-  double getPowerProgress(PowerType type) => state?.getPowerProgress(type) ?? 0.0;
+  Power? getPowerByType(PowerType type) => state.selectedAvatar?.getPowerByType(type);
+  int getPowerLevel(PowerType type) => state.selectedAvatar?.getPowerLevel(type) ?? 0;
+  int getPowerExperience(PowerType type) => state.selectedAvatar?.getPowerExperience(type) ?? 0;
+  double getPowerProgress(PowerType type) => state.selectedAvatar?.getPowerProgress(type) ?? 0.0;
 }
 
 // SharedPreferences provider
@@ -340,7 +578,7 @@ final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async 
 });
 
 // Avatar provider that depends on SharedPreferences
-final avatarProvider = StateNotifierProvider<AvatarNotifier, Avatar?>((ref) {
+final avatarProvider = StateNotifierProvider<AvatarNotifier, AvatarsState>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider).value;
   if (prefs == null) return AvatarNotifier(SharedPreferences.getInstance() as SharedPreferences);
   return AvatarNotifier(prefs);
@@ -348,26 +586,46 @@ final avatarProvider = StateNotifierProvider<AvatarNotifier, Avatar?>((ref) {
 
 // Derived providers
 final hasAvatarProvider = Provider<bool>((ref) {
-  return ref.watch(avatarProvider) != null;
+  return ref.watch(avatarProvider).hasAvatar;
+});
+
+final hasPrimaryAvatarProvider = Provider<bool>((ref) {
+  return ref.watch(avatarProvider).hasPrimaryAvatar;
+});
+
+final selectedAvatarProvider = Provider<Avatar?>((ref) {
+  return ref.watch(avatarProvider).selectedAvatar;
+});
+
+final primaryAvatarProvider = Provider<Avatar?>((ref) {
+  return ref.watch(avatarProvider).primaryAvatar;
+});
+
+final allAvatarsProvider = Provider<List<Avatar>>((ref) {
+  return ref.watch(avatarProvider).allAvatars;
+});
+
+final houseAvatarsProvider = Provider<List<Avatar>>((ref) {
+  return ref.watch(avatarProvider).houseAvatars;
 });
 
 final isSuperstarAvatarProvider = Provider<bool>((ref) {
-  return ref.watch(avatarProvider)?.isSuperstarAvatar ?? false;
+  return ref.watch(avatarProvider).isSuperstarAvatar;
 });
 
 final totalLevelProvider = Provider<int>((ref) {
-  return ref.watch(avatarProvider)?.totalLevel ?? 0;
+  return ref.watch(avatarProvider).totalLevel;
 });
 
 final totalExperienceProvider = Provider<int>((ref) {
-  return ref.watch(avatarProvider)?.totalExperience ?? 0;
+  return ref.watch(avatarProvider).totalExperience;
 });
 
 final powersProvider = Provider<List<Power>>((ref) {
-  return ref.watch(avatarProvider)?.powers ?? [];
+  return ref.watch(avatarProvider).powers;
 });
 
 final currentHouseProvider = Provider<({String? id, String? name})>((ref) {
-  final avatar = ref.watch(avatarProvider);
+  final avatar = ref.watch(avatarProvider).selectedAvatar;
   return (id: avatar?.houseId, name: avatar?.houseName);
 }); 
