@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
 import '../models/activity_script.dart';
 import '../providers/avatar_provider.dart';
+import '../providers/activities_provider.dart';
 import '../widgets/gradient_button.dart';
 import 'activity_authoring_screen.dart';
 
@@ -14,28 +15,38 @@ class ActivitiesScreen extends ConsumerStatefulWidget {
 }
 
 class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
-  List<ActivityScript> _activities = [];
-  bool _isLoading = false;
-
   @override
   void initState() {
     super.initState();
-    _loadActivities();
-  }
-
-  void _loadActivities() {
-    setState(() {
-      _activities = ActivityScript.sampleActivities;
+    // Refresh activities when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(activitiesProvider.notifier).refresh();
     });
   }
 
   Future<void> _completeActivity(ActivityScript activity) async {
-    setState(() {
-      _isLoading = true;
-    });
+    final avatar = ref.read(avatarProvider);
+    if (avatar == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please create an avatar first'),
+          backgroundColor: AppConstants.errorColor,
+        ),
+      );
+      return;
+    }
 
     try {
-      // Add experience to each target power
+      final blockchainService = BlockchainService();
+      
+      // Complete activity on blockchain
+      await blockchainService.completeActivity(
+        activityId: activity.id,
+        avatarId: avatar.id,
+        proof: '',
+      );
+
+      // Add experience to each target power locally
       for (final powerType in activity.targetPowers) {
         await ref.read(avatarProvider.notifier).addExperienceToPower(
           powerType,
@@ -50,6 +61,9 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
             backgroundColor: AppConstants.successColor,
           ),
         );
+        
+        // Refresh activities to update completion status
+        ref.read(activitiesProvider.notifier).refresh();
       }
     } catch (e) {
       if (mounted) {
@@ -60,28 +74,41 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
           ),
         );
       }
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final activitiesAsync = ref.watch(activitiesProvider);
+    final canCreate = ref.watch(canCreateActivityProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Activities'),
         actions: [
+          // Show create button only if user can create activities
+          canCreate.when(
+            data: (canCreate) => canCreate
+                ? IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Author Activity',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const ActivityAuthoringScreen(),
+                        ),
+                      );
+                    },
+                  )
+                : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
           IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Author Activity',
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const ActivityAuthoringScreen(),
-                ),
-              );
+              ref.read(activitiesProvider.notifier).refresh();
             },
           ),
           IconButton(
@@ -98,16 +125,81 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
+      body: activitiesAsync.when(
+        data: (activities) {
+          if (activities.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.inbox,
+                    size: 64,
+                    color: AppConstants.textSecondaryColor,
+                  ),
+                  const SizedBox(height: AppConstants.spacingM),
+                  Text(
+                    'No activities found',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppConstants.spacingS),
+                  Text(
+                    'Activities will appear here once they are created on the blockchain',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppConstants.textSecondaryColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () => ref.read(activitiesProvider.notifier).refresh(),
+            child: ListView.builder(
               padding: const EdgeInsets.all(AppConstants.spacingL),
-              itemCount: _activities.length,
+              itemCount: activities.length,
               itemBuilder: (context, index) {
-                final activity = _activities[index];
+                final activity = activities[index];
                 return _buildActivityCard(activity);
               },
             ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: AppConstants.errorColor,
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+              Text(
+                'Error loading activities',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppConstants.spacingS),
+              Text(
+                error.toString(),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppConstants.errorColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(activitiesProvider.notifier).refresh();
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

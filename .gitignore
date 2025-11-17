@@ -64,6 +64,12 @@ Thumbs.db
 .env
 .env.*
 
+# Smart Contract deployment artifacts
+contracts/deployment.json
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
 # Android signing keys
 android/key.properties
 *.jks

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:web3dart/web3dart.dart';
 import 'package:http/http.dart' as http;
 import 'package:bip39/bip39.dart' as bip39;
@@ -21,6 +22,7 @@ class BlockchainService {
   late DeployedContract _houseMembershipContract;
   late DeployedContract _activityScriptsContract;
   late DeployedContract _superstarAvatarRegistryContract;
+  late DeployedContract _avatarRegistryContract;
 
   // Contract ABIs (simplified versions - full ABIs should be loaded from files)
   static const String powerVerificationABI = '''
@@ -230,6 +232,34 @@ class BlockchainService {
         "outputs": [{"name": "activityIds", "type": "string[]"}],
         "stateMutability": "view",
         "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "getAllActivityIds",
+        "outputs": [{"name": "activityIds", "type": "string[]"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "getActivityCount",
+        "outputs": [{"name": "count", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "authorId", "type": "string"}],
+        "name": "getActivitiesByAuthor",
+        "outputs": [{"name": "activityIds", "type": "string[]"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [{"name": "", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function"
       }
     ]
   ''';
@@ -294,6 +324,83 @@ class BlockchainService {
     ]
   ''';
 
+  static const String avatarRegistryABI = '''
+    [
+      {
+        "inputs": [
+          {"name": "avatarId", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "bio", "type": "string"},
+          {"name": "imageUri", "type": "string"},
+          {"name": "metadata", "type": "string"}
+        ],
+        "name": "createAvatar",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "avatarId", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "bio", "type": "string"},
+          {"name": "metadata", "type": "string"}
+        ],
+        "name": "updateAvatar",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "avatarId", "type": "string"},
+          {"name": "newImageUri", "type": "string"}
+        ],
+        "name": "updateAvatarImage",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "avatarId", "type": "string"}],
+        "name": "getAvatar",
+        "outputs": [
+          {
+            "components": [
+              {"name": "id", "type": "string"},
+              {"name": "name", "type": "string"},
+              {"name": "bio", "type": "string"},
+              {"name": "imageUri", "type": "string"},
+              {"name": "walletAddress", "type": "address"},
+              {"name": "createdAt", "type": "uint256"},
+              {"name": "updatedAt", "type": "uint256"},
+              {"name": "isActive", "type": "bool"},
+              {"name": "metadata", "type": "string"}
+            ],
+            "name": "",
+            "type": "tuple"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "walletAddress", "type": "address"}],
+        "name": "getAvatarIdByAddress",
+        "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "avatarId", "type": "string"}],
+        "name": "avatarExistsCheck",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ]
+  ''';
+
   Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -322,6 +429,11 @@ class BlockchainService {
       _superstarAvatarRegistryContract = DeployedContract(
         ContractAbi.fromJson(superstarAvatarRegistryABI, 'SuperstarAvatarRegistry'),
         EthereumAddress.fromHex(AppConstants.superstarAvatarRegistryContractAddress),
+      );
+
+      _avatarRegistryContract = DeployedContract(
+        ContractAbi.fromJson(avatarRegistryABI, 'AvatarRegistry'),
+        EthereumAddress.fromHex(AppConstants.avatarRegistryContractAddress),
       );
 
       _isInitialized = true;
@@ -759,6 +871,146 @@ class BlockchainService {
     }
   }
 
+  /// Get activity script by ID
+  Future<Map<String, dynamic>?> getActivityScript(String activityId) async {
+    try {
+      final function = _activityScriptsContract.function('getActivityScript');
+      final params = [activityId];
+
+      final result = await _client.call(
+        contract: _activityScriptsContract,
+        function: function,
+        params: params,
+      );
+
+      // Parse the result according to the contract return structure
+      return {
+        'id': result[0] as String,
+        'title': result[1] as String,
+        'description': result[2] as String,
+        'instructions': result[3] as String,
+        'activityType': (result[4] as BigInt).toInt(),
+        'primaryPower': (result[5] as BigInt).toInt(),
+        'secondaryPowers': (result[6] as List<BigInt>).map((e) => e.toInt()).toList(),
+        'experienceReward': (result[7] as BigInt).toInt(),
+        'difficulty': (result[8] as BigInt).toInt(),
+        'timeLimit': (result[9] as BigInt).toInt(),
+        'maxCompletions': (result[10] as BigInt).toInt(),
+        'completedCount': (result[11] as BigInt).toInt(),
+        'createdAt': (result[12] as BigInt).toInt(),
+        'isActive': result[13] as bool,
+        'requiresVerification': result[14] as bool,
+        'metadata': result[15] as String,
+        'authorId': result[16] as String,
+        'decentralizedStorageRef': result[17] as String,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get activity IDs by type
+  Future<List<String>> getActivitiesByType(int activityType) async {
+    try {
+      final function = _activityScriptsContract.function('getActivitiesByType');
+      final params = [BigInt.from(activityType)];
+
+      final result = await _client.call(
+        contract: _activityScriptsContract,
+        function: function,
+        params: params,
+      );
+
+      return (result[0] as List<dynamic>).map((e) => e.toString()).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Get all activities by fetching from all activity types
+  /// Now uses the contract's getAllActivityIds() function for better performance
+  Future<List<String>> getAllActivityIds() async {
+    try {
+      final function = _activityScriptsContract.function('getAllActivityIds');
+      final result = await _client.call(
+        contract: _activityScriptsContract,
+        function: function,
+        params: [],
+      );
+
+      return (result[0] as List<dynamic>).map((e) => e.toString()).toList();
+    } catch (e) {
+      debugPrint('Error getting all activity IDs: $e');
+      // Fallback to fetching by type if direct call fails
+      try {
+        final allActivityIds = <String>{};
+        for (int activityType = 0; activityType < 7; activityType++) {
+          final activityIds = await getActivitiesByType(activityType);
+          allActivityIds.addAll(activityIds);
+        }
+        return allActivityIds.toList();
+      } catch (fallbackError) {
+        debugPrint('Fallback also failed: $fallbackError');
+        return [];
+      }
+    }
+  }
+
+  /// Get activities by author
+  Future<List<String>> getActivitiesByAuthor(String authorId) async {
+    try {
+      final function = _activityScriptsContract.function('getActivitiesByAuthor');
+      final params = [authorId];
+
+      final result = await _client.call(
+        contract: _activityScriptsContract,
+        function: function,
+        params: params,
+      );
+
+      return (result[0] as List<dynamic>).map((e) => e.toString()).toList();
+    } catch (e) {
+      debugPrint('Error getting activities by author: $e');
+      return [];
+    }
+  }
+
+  /// Get total activity count
+  Future<int> getActivityCount() async {
+    try {
+      final function = _activityScriptsContract.function('getActivityCount');
+      final result = await _client.call(
+        contract: _activityScriptsContract,
+        function: function,
+        params: [],
+      );
+
+      return (result[0] as BigInt).toInt();
+    } catch (e) {
+      debugPrint('Error getting activity count: $e');
+      return 0;
+    }
+  }
+
+  /// Check if the current wallet is the contract owner (admin)
+  Future<bool> isContractOwner() async {
+    try {
+      if (!isWalletConnected) return false;
+      
+      final function = _activityScriptsContract.function('owner');
+      final result = await _client.call(
+        contract: _activityScriptsContract,
+        function: function,
+        params: [],
+      );
+      
+      final ownerAddress = (result[0] as EthereumAddress).hex;
+      return ownerAddress.toLowerCase() == _walletAddress?.toLowerCase();
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Superstar Avatar Registry Methods
   Future<String> registerSuperstarAvatar({
     required String avatarId,
@@ -1030,6 +1282,172 @@ class BlockchainService {
       throw Exception('Ticket lookup from QR code pending');
     } catch (e) {
       throw Exception('Failed to get ticket from QR code: $e');
+    }
+  }
+
+  // Avatar Registry Methods
+  /// Create a new avatar profile on the blockchain
+  Future<String> createAvatarProfile({
+    required String avatarId,
+    required String name,
+    required String bio,
+    required String imageUri,
+    String metadata = "",
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _avatarRegistryContract.function('createAvatar');
+      final params = [avatarId, name, bio, imageUri, metadata];
+
+      final transaction = Transaction.callContract(
+        contract: _avatarRegistryContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      debugPrint('Error creating avatar profile: $e');
+      throw Exception('Failed to create avatar profile: $e');
+    }
+  }
+
+  /// Update avatar profile (name, bio, metadata)
+  Future<String> updateAvatarProfile({
+    required String avatarId,
+    String name = "",
+    String bio = "",
+    String metadata = "",
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _avatarRegistryContract.function('updateAvatar');
+      final params = [avatarId, name, bio, metadata];
+
+      final transaction = Transaction.callContract(
+        contract: _avatarRegistryContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      debugPrint('Error updating avatar profile: $e');
+      throw Exception('Failed to update avatar profile: $e');
+    }
+  }
+
+  /// Update avatar image URI
+  Future<String> updateAvatarImage({
+    required String avatarId,
+    required String newImageUri,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _avatarRegistryContract.function('updateAvatarImage');
+      final params = [avatarId, newImageUri];
+
+      final transaction = Transaction.callContract(
+        contract: _avatarRegistryContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      debugPrint('Error updating avatar image: $e');
+      throw Exception('Failed to update avatar image: $e');
+    }
+  }
+
+  /// Get avatar profile from blockchain
+  Future<Map<String, dynamic>?> getAvatarProfile(String avatarId) async {
+    try {
+      final function = _avatarRegistryContract.function('getAvatar');
+      final params = [avatarId];
+
+      final result = await _client.call(
+        contract: _avatarRegistryContract,
+        function: function,
+        params: params,
+      );
+
+      // Parse tuple result
+      final tuple = result[0] as List<dynamic>;
+      return {
+        'id': tuple[0] as String,
+        'name': tuple[1] as String,
+        'bio': tuple[2] as String,
+        'imageUri': tuple[3] as String,
+        'walletAddress': (tuple[4] as EthereumAddress).hex,
+        'createdAt': (tuple[5] as BigInt).toInt(),
+        'updatedAt': (tuple[6] as BigInt).toInt(),
+        'isActive': tuple[7] as bool,
+        'metadata': tuple[8] as String,
+      };
+    } catch (e) {
+      debugPrint('Error getting avatar profile: $e');
+      return null;
+    }
+  }
+
+  /// Get avatar ID by wallet address
+  Future<String?> getAvatarIdByAddress(String walletAddress) async {
+    try {
+      final function = _avatarRegistryContract.function('getAvatarIdByAddress');
+      final params = [EthereumAddress.fromHex(walletAddress)];
+
+      final result = await _client.call(
+        contract: _avatarRegistryContract,
+        function: function,
+        params: params,
+      );
+
+      final avatarId = result[0] as String;
+      return avatarId.isEmpty ? null : avatarId;
+    } catch (e) {
+      debugPrint('Error getting avatar ID by address: $e');
+      return null;
+    }
+  }
+
+  /// Check if avatar exists on blockchain
+  Future<bool> avatarExistsOnBlockchain(String avatarId) async {
+    try {
+      final function = _avatarRegistryContract.function('avatarExistsCheck');
+      final params = [avatarId];
+
+      final result = await _client.call(
+        contract: _avatarRegistryContract,
+        function: function,
+        params: params,
+      );
+
+      return result[0] as bool;
+    } catch (e) {
+      debugPrint('Error checking avatar existence: $e');
+      return false;
     }
   }
 

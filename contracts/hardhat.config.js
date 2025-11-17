@@ -1,16 +1,18 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("@openzeppelin/hardhat-upgrades");
 require("hardhat-gas-reporter");
 require("solidity-coverage");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
-    version: "0.8.19",
+    version: "0.8.20",
     settings: {
       optimizer: {
         enabled: true,
         runs: 200,
       },
+      viaIR: true,
     },
   },
   networks: {
@@ -44,9 +46,14 @@ module.exports = {
     },
   },
   paths: {
-    sources: "./",
+    sources: "./src",
     tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts",
+    root: "./",
+  },
+  // Exclude node_modules from being treated as local sources
+  mocha: {
+    timeout: 40000,
   },
 }; 
