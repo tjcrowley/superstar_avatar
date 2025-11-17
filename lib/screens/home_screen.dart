@@ -7,6 +7,7 @@ import '../widgets/power_card.dart';
 import '../widgets/avatar_profile_card.dart';
 import 'activities_screen.dart';
 import 'settings_screen.dart';
+import 'event_discovery_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -37,6 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _buildHomeTab(),
           _buildPowersTab(),
           const ActivitiesScreen(),
+          const EventDiscoveryScreen(),
           _buildHouseTab(),
           _buildProfileTab(),
         ],
@@ -63,6 +65,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.assignment),
             label: 'Activities',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: 'Events',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.group),
