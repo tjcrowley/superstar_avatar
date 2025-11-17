@@ -23,7 +23,7 @@ npm install
 2. Set up environment variables in `contracts/.env`:
 ```env
 PRIVATE_KEY=your_private_key_here
-MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+AMOY_RPC_URL=https://rpc-amoy.polygon.technology
 POLYGON_RPC_URL=https://polygon-rpc.com
 POLYGONSCAN_API_KEY=your_polygonscan_api_key
 ```
@@ -37,15 +37,15 @@ cd contracts
 npm run compile
 ```
 
-### 2. Deploy to Mumbai Testnet
+### 2. Deploy to Amoy Testnet
 
 ```bash
-npm run deploy:avatar-registry:mumbai
+npm run deploy:avatar-registry:amoy
 ```
 
 Or manually:
 ```bash
-npx hardhat run scripts/deploy-avatar-registry.js --network mumbai
+npx hardhat run scripts/deploy-avatar-registry.js --network amoy
 ```
 
 ### 3. Deploy to Polygon Mainnet
@@ -74,7 +74,7 @@ static const String avatarRegistryContractAddress = '0x...'; // Your deployed pr
 To upgrade the contract in the future:
 
 ```bash
-npx hardhat run scripts/upgrade-avatar-registry.js --network mumbai
+npx hardhat run scripts/upgrade-avatar-registry.js --network amoy
 ```
 
 This will:
@@ -88,7 +88,7 @@ Verify the proxy and implementation contracts on Polygonscan:
 
 ```bash
 # Verify implementation
-npx hardhat verify --network mumbai <IMPLEMENTATION_ADDRESS> <INITIAL_OWNER>
+npx hardhat verify --network amoy <IMPLEMENTATION_ADDRESS> <INITIAL_OWNER>
 
 # Note: Proxy verification is automatic on Polygonscan
 ```
@@ -129,7 +129,7 @@ await blockchainService.updateAvatarImage(
 
 ## Gas Costs
 
-Estimated gas costs (Mumbai testnet):
+Estimated gas costs (Amoy testnet):
 - `createAvatar`: ~150,000 gas
 - `updateAvatar`: ~80,000 gas
 - `updateAvatarImage`: ~60,000 gas
@@ -152,7 +152,7 @@ Estimated gas costs (Mumbai testnet):
 
 ## Next Steps
 
-1. Deploy contract to Mumbai testnet
+1. Deploy contract to Amoy testnet
 2. Update contract address in `app_constants.dart`
 3. Test avatar creation and updates
 4. Integrate IPFS for image storage

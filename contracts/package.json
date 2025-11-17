@@ -7,14 +7,14 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:polygon": "hardhat run scripts/deploy.js --network polygon",
-    "deploy:mumbai": "hardhat run scripts/deploy.js --network mumbai",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:avatar-registry:mumbai": "hardhat run scripts/deploy-avatar-registry.js --network mumbai",
+    "deploy:avatar-registry:amoy": "hardhat run scripts/deploy-avatar-registry.js --network amoy",
     "deploy:avatar-registry:polygon": "hardhat run scripts/deploy-avatar-registry.js --network polygon",
-    "upgrade:avatar-registry:mumbai": "hardhat run scripts/upgrade-avatar-registry.js --network mumbai",
+    "upgrade:avatar-registry:amoy": "hardhat run scripts/upgrade-avatar-registry.js --network amoy",
     "upgrade:avatar-registry:polygon": "hardhat run scripts/upgrade-avatar-registry.js --network polygon",
     "verify:polygon": "hardhat run scripts/verify.js --network polygon",
-    "verify:mumbai": "hardhat run scripts/verify.js --network mumbai",
+    "verify:amoy": "hardhat run scripts/verify.js --network amoy",
     "node": "hardhat node",
     "clean": "hardhat clean"
   },
@@ -34,21 +34,21 @@
     "@openzeppelin/contracts-upgradeable": "^5.0.0"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.2",
     "@nomicfoundation/hardhat-ethers": "^3.0.4",
-    "@nomicfoundation/hardhat-verify": "^2.0.1",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.0.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.3.5",
     "@types/mocha": "^10.0.1",
     "chai": "^4.3.7",
+    "dotenv": "^17.2.3",
     "ethers": "^6.8.1",
     "hardhat": "^2.19.1",
     "hardhat-gas-reporter": "^1.0.9",
     "solidity-coverage": "^0.8.5",
     "typechain": "^8.3.1"
   }
-} 
+}

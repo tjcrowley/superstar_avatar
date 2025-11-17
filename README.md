@@ -187,7 +187,7 @@ flutter drive --target=test_driver/app.dart
 
 ### Network Configuration
 - **Mainnet**: Polygon mainnet for production
-- **Testnet**: Mumbai testnet for development
+- **Testnet**: Amoy testnet for development (replacement for deprecated Mumbai)
 - **Local**: Hardhat/Ganache for testing
 
 ## 📊 Analytics & Monitoring

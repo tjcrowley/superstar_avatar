@@ -2,8 +2,29 @@ const { ethers } = require("hardhat");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
+  
+  if (!deployer) {
+    throw new Error(
+      "No deployer account found. Please set PRIVATE_KEY in your .env file.\n" +
+      "Example: PRIVATE_KEY=your_private_key_without_0x_prefix"
+    );
+  }
+  
   console.log("Deploying contracts with the account:", deployer.address);
-  console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString());
+  
+  const balance = await deployer.provider.getBalance(deployer.address);
+  const balanceInEth = ethers.formatEther(balance);
+  console.log("Account balance:", balanceInEth, "MATIC");
+  
+  // Check if balance is sufficient (need at least 0.2 MATIC for all deployments)
+  const minBalance = ethers.parseEther("0.2");
+  if (balance < minBalance) {
+    console.warn("\n⚠️  WARNING: Low balance detected!");
+    console.warn(`   Current balance: ${balanceInEth} MATIC`);
+    console.warn(`   Recommended: At least 0.2 MATIC for all contract deployments`);
+    console.warn(`   Get testnet MATIC from: https://faucet.polygon.technology/`);
+    console.warn("\n   Continuing anyway, but deployment may fail if balance is insufficient...\n");
+  }
 
   // Deploy PowerVerification contract
   console.log("\nDeploying PowerVerification contract...");

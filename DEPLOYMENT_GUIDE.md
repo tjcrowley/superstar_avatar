@@ -55,7 +55,7 @@ PRIVATE_KEY=your_private_key_here
 
 # RPC URLs
 POLYGON_RPC_URL=https://polygon-rpc.com
-MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+AMOY_RPC_URL=https://rpc-amoy.polygon.technology
 
 # API Keys
 POLYGONSCAN_API_KEY=your_polygonscan_api_key
@@ -72,11 +72,11 @@ REPORT_GAS=true
 npm run compile
 ```
 
-### 4. Deploy to Testnet (Mumbai)
+### 4. Deploy to Testnet (Amoy)
 
 ```bash
-# Deploy to Mumbai testnet
-npm run deploy:mumbai
+# Deploy to Amoy testnet
+npm run deploy:amoy
 ```
 
 This will:
@@ -89,8 +89,8 @@ This will:
 ### 5. Verify Contracts on Polygonscan
 
 ```bash
-# Verify contracts on Mumbai testnet
-npm run verify:mumbai
+# Verify contracts on Amoy testnet
+npm run verify:amoy
 ```
 
 ### 6. Deploy to Mainnet (Polygon)
@@ -139,7 +139,7 @@ Update `lib/constants/app_constants.dart` with your deployment information:
 ```dart
 // Blockchain Configuration
 static const String polygonRpcUrl = 'https://polygon-rpc.com';
-static const String polygonChainId = '137'; // Use '80001' for Mumbai testnet
+static const String polygonChainId = '137'; // Use '80002' for Amoy testnet
 
 // Smart Contract Addresses (from deployment)
 static const String powerVerificationContractAddress = '0x...';

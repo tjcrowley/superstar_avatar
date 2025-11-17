@@ -84,7 +84,7 @@ The Superstar Avatar system consists of four main smart contracts that work toge
    ```env
    PRIVATE_KEY=your_private_key_here
    POLYGON_RPC_URL=https://polygon-rpc.com
-   MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+   AMOY_RPC_URL=https://rpc-amoy.polygon.technology
    POLYGONSCAN_API_KEY=your_polygonscan_api_key
    COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
    ```
@@ -105,10 +105,10 @@ npm run node
 npm run deploy:local
 ```
 
-### Testnet (Mumbai)
+### Testnet (Amoy)
 ```bash
-# Deploy to Mumbai testnet
-npm run deploy:mumbai
+# Deploy to Amoy testnet
+npm run deploy:amoy
 ```
 
 ### Mainnet (Polygon)
@@ -121,8 +121,8 @@ npm run deploy:polygon
 After deployment, verify your contracts on Polygonscan:
 
 ```bash
-# For Mumbai testnet
-npm run verify:mumbai
+# For Amoy testnet
+npm run verify:amoy
 
 # For Polygon mainnet
 npm run verify:polygon

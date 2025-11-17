@@ -1,9 +1,9 @@
-# Quick Start: Deploy to Mumbai Testnet
+# Quick Start: Deploy to Amoy Testnet
 
 ## Prerequisites Checklist
 
 - [ ] Node.js installed (v16+)
-- [ ] Wallet with Mumbai testnet MATIC (get from [faucet](https://faucet.polygon.technology/))
+- [ ] Wallet with Amoy testnet MATIC (get from [faucet](https://faucet.polygon.technology/))
 - [ ] Polygonscan API key (optional, for verification)
 
 ## 5-Minute Setup
@@ -21,7 +21,7 @@ cp .env.example .env
 
 # Edit .env and add:
 # - Your private key (without 0x)
-# - Mumbai RPC URL (or use default)
+# - Amoy RPC URL (default: https://rpc-amoy.polygon.technology)
 # - Polygonscan API key (optional)
 ```
 
@@ -30,14 +30,14 @@ cp .env.example .env
 npm run compile
 ```
 
-### 4. Deploy to Mumbai
+### 4. Deploy to Amoy
 ```bash
-npm run deploy:mumbai
+npm run deploy:amoy
 ```
 
 ### 5. Verify Contracts (Optional)
 ```bash
-npm run verify:mumbai
+npm run verify:amoy
 ```
 
 ## What You'll Get
@@ -59,8 +59,8 @@ static const String houseMembershipContractAddress = '0x...';
 
 Also update:
 ```dart
-static const String polygonRpcUrl = 'https://rpc-mumbai.maticvigil.com';
-static const String polygonChainId = '80001'; // Mumbai
+static const String polygonRpcUrl = 'https://rpc-amoy.polygon.technology';
+static const String polygonChainId = '80002'; // Amoy
 ```
 
 ## Troubleshooting
@@ -71,5 +71,5 @@ static const String polygonChainId = '80001'; // Mumbai
 
 ## Full Guide
 
-See [MUMBAI_DEPLOYMENT.md](../MUMBAI_DEPLOYMENT.md) for detailed instructions.
+See [AMOY_DEPLOYMENT.md](../AMOY_DEPLOYMENT.md) for detailed instructions.
 

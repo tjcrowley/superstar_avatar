@@ -1,6 +1,6 @@
-# Polygon Mumbai Testnet Deployment Guide
+# Polygon Amoy Testnet Deployment Guide
 
-This guide will walk you through deploying the Superstar Avatar smart contracts to Polygon Mumbai testnet.
+This guide will walk you through deploying the Superstar Avatar smart contracts to Polygon Amoy testnet (replacement for deprecated Mumbai testnet).
 
 ## Prerequisites
 
@@ -8,20 +8,20 @@ This guide will walk you through deploying the Superstar Avatar smart contracts 
 2. **A wallet with Mumbai testnet MATIC** for gas fees
 3. **Polygonscan API key** for contract verification (optional but recommended)
 
-## Step 1: Get Mumbai Testnet MATIC
+## Step 1: Get Amoy Testnet MATIC
 
 You need testnet MATIC tokens to pay for gas fees. Get them from a faucet:
 
 1. **Polygon Faucet**: https://faucet.polygon.technology/
-   - Select "Mumbai" network
+   - Select "Amoy" network
    - Enter your wallet address
    - Request testnet MATIC
 
-2. **Alchemy Faucet**: https://mumbaifaucet.com/
+2. **Alchemy Faucet**: https://www.alchemy.com/faucets/polygon-amoy
    - Connect your wallet or enter address
    - Request testnet MATIC
 
-3. **QuickNode Faucet**: https://faucet.quicknode.com/polygon/mumbai
+3. **QuickNode Faucet**: https://faucet.quicknode.com/polygon/amoy
 
 **Note**: You'll need at least 0.1 MATIC for deployment (contracts are relatively small).
 
@@ -43,8 +43,8 @@ touch .env
 # IMPORTANT: Never commit this file to git!
 PRIVATE_KEY=your_private_key_here
 
-# Mumbai testnet RPC URL (you can use a free one or get your own from Alchemy/Infura)
-MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+# Amoy testnet RPC URL (default public endpoint)
+AMOY_RPC_URL=https://rpc-amoy.polygon.technology
 
 # Polygonscan API key (get from https://polygonscan.com/apis)
 # This is optional but needed for contract verification
@@ -74,19 +74,19 @@ Free RPC endpoints can be slow. For better performance:
 1. **Alchemy** (Free tier available):
    - Sign up at https://www.alchemy.com/
    - Create a new app
-   - Select "Polygon" → "Mumbai"
+   - Select "Polygon" → "Amoy"
    - Copy the HTTP URL
 
 2. **Infura** (Free tier available):
    - Sign up at https://infura.io/
    - Create a new project
-   - Select "Polygon PoS" → "Mumbai"
+   - Select "Polygon PoS" → "Amoy"
    - Copy the endpoint URL
 
 3. **QuickNode** (Free tier available):
    - Sign up at https://www.quicknode.com/
    - Create an endpoint
-   - Select "Polygon" → "Mumbai Testnet"
+   - Select "Polygon" → "Amoy Testnet"
    - Copy the HTTP URL
 
 ## Step 3: Install Dependencies
@@ -109,15 +109,15 @@ npm run compile
 
 This compiles all Solidity contracts and checks for errors. Fix any compilation errors before proceeding.
 
-## Step 5: Deploy to Mumbai Testnet
+## Step 5: Deploy to Amoy Testnet
 
 ```bash
-npx hardhat run scripts/deploy.js --network mumbai
+npx hardhat run scripts/deploy.js --network amoy
 ```
 
 Or if you have a deploy script in package.json:
 ```bash
-npm run deploy:mumbai
+npm run deploy:amoy
 ```
 
 ### What Happens During Deployment
@@ -152,7 +152,7 @@ HouseMembership deployed to: 0x5678...
 
 Deployment Summary:
 {
-  "network": "mumbai",
+  "network": "amoy",
   "deployer": "0xYourAddress",
   "contracts": {
     "PowerVerification": "0x1234...",
@@ -170,17 +170,17 @@ Deployment info saved to deployment.json
 Verification makes your contract source code publicly viewable on Polygonscan, which is important for transparency and trust.
 
 ```bash
-npx hardhat verify --network mumbai <CONTRACT_ADDRESS> [CONSTRUCTOR_ARGS]
+npx hardhat verify --network amoy <CONTRACT_ADDRESS> [CONSTRUCTOR_ARGS]
 ```
 
 For example, to verify the PowerVerification contract (no constructor args):
 ```bash
-npx hardhat verify --network mumbai 0xYourPowerVerificationAddress
+npx hardhat verify --network amoy 0xYourPowerVerificationAddress
 ```
 
 For Ticketing contract (with constructor args):
 ```bash
-npx hardhat verify --network mumbai 0xYourTicketingAddress "0xEventListingsAddress" "0xEventProducerAddress" 500 "0xFeeRecipientAddress"
+npx hardhat verify --network amoy 0xYourTicketingAddress "0xEventListingsAddress" "0xEventProducerAddress" 500 "0xFeeRecipientAddress"
 ```
 
 ### Automated Verification Script
@@ -200,7 +200,7 @@ async function main() {
   try {
     await run("verify:verify", {
       address: contracts.PowerVerification,
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ PowerVerification verified");
   } catch (error) {
@@ -211,7 +211,7 @@ async function main() {
   try {
     await run("verify:verify", {
       address: contracts.HouseMembership,
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ HouseMembership verified");
   } catch (error) {
@@ -222,7 +222,7 @@ async function main() {
   try {
     await run("verify:verify", {
       address: contracts.ActivityScripts,
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ ActivityScripts verified");
   } catch (error) {
@@ -233,7 +233,7 @@ async function main() {
   try {
     await run("verify:verify", {
       address: contracts.SuperstarAvatarRegistry,
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ SuperstarAvatarRegistry verified");
   } catch (error) {
@@ -244,7 +244,7 @@ async function main() {
   try {
     await run("verify:verify", {
       address: contracts.EventProducer,
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ EventProducer verified");
   } catch (error) {
@@ -256,7 +256,7 @@ async function main() {
     await run("verify:verify", {
       address: contracts.EventListings,
       constructorArguments: [contracts.EventProducer],
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ EventListings verified");
   } catch (error) {
@@ -273,7 +273,7 @@ async function main() {
         500, // platform fee percentage
         deploymentInfo.deployer, // fee recipient
       ],
-      network: "mumbai",
+      network: "amoy",
     });
     console.log("✓ Ticketing verified");
   } catch (error) {
@@ -293,7 +293,7 @@ main()
 
 Then run:
 ```bash
-npx hardhat run scripts/verify.js --network mumbai
+npx hardhat run scripts/verify.js --network amoy
 ```
 
 ## Step 7: Update Flutter App Configuration
@@ -304,7 +304,7 @@ After deployment, update your Flutter app with the contract addresses:
 
 2. Update the contract addresses:
 ```dart
-// Smart Contract Addresses (Mumbai Testnet)
+// Smart Contract Addresses (Amoy Testnet)
 static const String powerVerificationContractAddress = '0xYourPowerVerificationAddress';
 static const String houseMembershipContractAddress = '0xYourHouseMembershipAddress';
 static const String activityScriptsContractAddress = '0xYourActivityScriptsAddress';
@@ -325,12 +325,12 @@ static const String polygonExplorerUrl = 'https://mumbai.polygonscan.com';
 ## Step 8: Test the Deployment
 
 1. **Check on Polygonscan**:
-   - Go to https://mumbai.polygonscan.com/
+   - Go to https://amoy.polygonscan.com/
    - Search for your contract addresses
    - Verify they're deployed and verified
 
 2. **Test with Flutter App**:
-   - Connect your wallet to Mumbai testnet
+   - Connect your wallet to Amoy testnet
    - Try creating an avatar
    - Try verifying a power
    - Try creating a house
@@ -362,12 +362,12 @@ static const String polygonExplorerUrl = 'https://mumbai.polygonscan.com';
 
 ### Contracts not showing on Polygonscan
 - Wait a few minutes for blockchain indexing
-- Check that you're on the correct network (Mumbai)
+- Check that you're on the correct network (Amoy)
 - Verify the transaction hash on Polygonscan
 
 ## Next Steps
 
-1. **Test thoroughly** on Mumbai before considering mainnet
+1. **Test thoroughly** on Amoy before considering mainnet
 2. **Document your contract addresses** for your team
 3. **Set up monitoring** for contract events
 4. **Plan for mainnet deployment** when ready
@@ -382,8 +382,8 @@ static const String polygonExplorerUrl = 'https://mumbai.polygonscan.com';
 
 ## Additional Resources
 
-- [Polygon Mumbai Faucet](https://faucet.polygon.technology/)
-- [Polygonscan Mumbai](https://mumbai.polygonscan.com/)
+- [Polygon Amoy Faucet](https://faucet.polygon.technology/)
+- [Polygonscan Amoy](https://amoy.polygonscan.com/)
 - [Hardhat Documentation](https://hardhat.org/docs)
 - [Polygon Documentation](https://docs.polygon.technology/)
 
