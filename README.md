@@ -21,7 +21,7 @@ SUPERSTAR AVATAR is a gameful social layer that enhances social experiences thro
 - Community-driven growth and collaboration
 
 ### 📱 Mobile App Features
-- **Wallet Integration**: Create or import Polygon wallets
+- **Identity Integration**: Create or import Polygon identities
 - **Avatar Creation**: Personalized profiles with progress tracking
 - **Activity System**: Complete social challenges to earn experience
 - **Progress Tracking**: Visual progress bars and level indicators
@@ -111,8 +111,8 @@ lib/
 
 ## 📱 App Flow
 
-### 1. Wallet Setup
-- Create new wallet or import existing one
+### 1. Identity Setup
+- Create new identity or import existing one
 - Secure mnemonic phrase generation
 - Polygon network connection
 
@@ -172,7 +172,7 @@ flutter drive --target=test_driver/app.dart
 
 ## 🔐 Security Features
 
-- **Wallet Security**: BIP39 mnemonic phrase generation
+- **Identity Security**: BIP39 mnemonic phrase generation
 - **Private Key Management**: Secure local storage
 - **Transaction Signing**: Cryptographic signature verification
 - **Data Privacy**: Zero-knowledge proofs for verification
@@ -232,7 +232,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🔮 Roadmap
 
 ### Phase 1: Core Features ✅
-- [x] Wallet integration
+- [x] Identity integration
 - [x] Avatar creation
 - [x] Power system
 - [x] Basic activities
