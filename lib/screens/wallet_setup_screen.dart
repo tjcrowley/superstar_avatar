@@ -177,7 +177,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                 onPressed: () async {
                   final url = Uri.parse(_faucetService.getFaucetUrl(network: 'amoy'));
                   if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalBrowser);
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
                   }
                 },
               ),

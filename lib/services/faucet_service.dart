@@ -83,11 +83,12 @@ class FaucetService {
   Future<bool> hasSufficientBalance({
     required String walletAddress,
     required Future<BigInt> Function() getBalance,
-    BigInt minBalance = BigInt.from(10000000000000000), // 0.01 MATIC in wei
+    BigInt? minBalance,
   }) async {
+    final minBalanceValue = minBalance ?? BigInt.from(10000000000000000); // 0.01 MATIC in wei
     try {
       final balance = await getBalance();
-      return balance >= minBalance;
+      return balance >= minBalanceValue;
     } catch (e) {
       debugPrint('Error checking balance: $e');
       return false;

@@ -78,7 +78,7 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
     setState(() => _isSubmitting = true);
 
     try {
-      final avatar = ref.read(avatarProvider);
+      final avatar = ref.read(selectedAvatarProvider);
       if (avatar == null) {
         throw Exception('Avatar not found');
       }
@@ -95,8 +95,8 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
         difficulty: _selectedDifficulty,
         estimatedDuration: _estimatedDuration,
         experienceReward: _experienceReward,
-        authorId: avatar.id,
-        authorName: avatar.name,
+        authorId: avatar?.id ?? '',
+        authorName: avatar?.name ?? '',
         status: ActivityStatus.draft,
         createdAt: DateTime.now(),
         tags: _tagsController.text

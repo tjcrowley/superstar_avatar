@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_constants.dart';
 import '../providers/avatar_provider.dart';
 import '../widgets/gradient_button.dart';
 import '../models/power.dart';
+import '../services/faucet_service.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -16,6 +18,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
+  final _faucetService = FaucetService();
   int _currentStep = 0;
   bool _isCreatingAvatar = false;
 
@@ -49,12 +52,61 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create avatar: $e'),
-            backgroundColor: AppConstants.errorColor,
-          ),
-        );
+        final errorMessage = e.toString();
+        final isInsufficientFunds = errorMessage.toLowerCase().contains('insufficient funds') ||
+            errorMessage.toLowerCase().contains('insufficientfunds');
+        
+        if (isInsufficientFunds) {
+          // Show dialog with helpful information
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Insufficient Funds'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'You need MATIC to pay for gas fees when creating an avatar. '
+                    'Please get testnet MATIC from the faucet.',
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'You need at least 0.01 MATIC to create an avatar.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final url = Uri.parse(_faucetService.getFaucetUrl(network: 'amoy'));
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                    if (mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('Open Faucet'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // Show regular error snackbar
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to create avatar: ${errorMessage.replaceAll('Exception: ', '')}'),
+              backgroundColor: AppConstants.errorColor,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
       }
     } finally {
       setState(() {

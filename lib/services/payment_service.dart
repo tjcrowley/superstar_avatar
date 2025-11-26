@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import '../constants/app_constants.dart';
 
 /// Service for handling MATIC purchases via Stripe
 class PaymentService {

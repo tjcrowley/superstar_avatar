@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +13,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/wallet_setup_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'screens/admin_dashboard_screen.dart';
 import 'providers/avatar_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'services/blockchain_service.dart';
@@ -17,16 +21,64 @@ import 'services/blockchain_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize services
-  await SharedPreferences.getInstance();
-  await Hive.initFlutter();
-  await BlockchainService().initialize();
+  // Set up global error handlers
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('Flutter Error: ${details.exception}');
+    debugPrint('Stack trace: ${details.stack}');
+  };
   
-  // Initialize Stripe
-  Stripe.publishableKey = AppConstants.stripePublishableKey;
-  Stripe.merchantIdentifier = 'merchant.com.superstaravatar';
-  await Stripe.instance.applySettings();
+  // Handle async errors
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Platform Error: $error');
+    debugPrint('Stack trace: $stack');
+    return true;
+  };
   
+  // Initialize services with error handling
+  try {
+    await SharedPreferences.getInstance();
+    debugPrint('✓ SharedPreferences initialized');
+  } catch (e, stack) {
+    debugPrint('✗ Failed to initialize SharedPreferences: $e');
+    debugPrint('Stack: $stack');
+  }
+  
+  try {
+    await Hive.initFlutter();
+    debugPrint('✓ Hive initialized');
+  } catch (e, stack) {
+    debugPrint('✗ Failed to initialize Hive: $e');
+    debugPrint('Stack: $stack');
+  }
+  
+  try {
+    await BlockchainService().initialize();
+    debugPrint('✓ BlockchainService initialized');
+  } catch (e, stack) {
+    debugPrint('✗ Failed to initialize BlockchainService: $e');
+    debugPrint('Stack: $stack');
+    // Continue anyway - service will retry when needed
+  }
+  
+  // Initialize Stripe (optional - only if key is provided)
+  try {
+    if (AppConstants.stripePublishableKey.isNotEmpty && 
+        AppConstants.stripePublishableKey != 'YOUR_STRIPE_PUBLISHABLE_KEY') {
+      Stripe.publishableKey = AppConstants.stripePublishableKey;
+      Stripe.merchantIdentifier = 'merchant.com.superstaravatar';
+      await Stripe.instance.applySettings();
+      debugPrint('✓ Stripe initialized');
+    } else {
+      debugPrint('⚠ Stripe not configured (using placeholder key)');
+    }
+  } catch (e, stack) {
+    debugPrint('✗ Failed to initialize Stripe: $e');
+    debugPrint('Stack: $stack');
+    // Continue anyway - Stripe features will be disabled
+  }
+  
+  debugPrint('🚀 Starting app...');
   runApp(const ProviderScope(child: SuperstarAvatarApp()));
 }
 
@@ -42,7 +94,7 @@ class SuperstarAvatarApp extends ConsumerWidget {
         home: const AppRouter(),
           routes: {
             '/edit-profile': (context) => const EditProfileScreen(),
-            '/admin': (context) => const AdminDashboardScreen(),
+            '/admin': (context) => AdminDashboardScreen(),
           },
     );
   }
@@ -169,22 +221,98 @@ class AppRouter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasAvatar = ref.watch(hasAvatarProvider);
-    final isWalletConnected = ref.watch(isWalletConnectedProvider);
+    try {
+      final hasAvatar = ref.watch(hasAvatarProvider);
+      final isWalletConnected = ref.watch(isWalletConnectedProvider);
 
-    // Check if wallet is connected
-    if (!isWalletConnected) {
-      return const WalletSetupScreen();
+      // Check if wallet is connected
+      if (!isWalletConnected) {
+        return const WalletSetupScreen();
+      }
+
+      // Check if avatar exists
+      if (!hasAvatar) {
+        return const OnboardingScreen();
+      }
+
+      // Check if user is admin and show admin dashboard if accessing admin route
+      // Main app
+      return const HomeScreen();
+    } catch (e, stack) {
+      debugPrint('Error in AppRouter: $e');
+      debugPrint('Stack: $stack');
+      return ErrorScreen(error: e, stackTrace: stack);
     }
+  }
+}
 
-    // Check if avatar exists
-    if (!hasAvatar) {
-      return const OnboardingScreen();
-    }
+class ErrorScreen extends StatelessWidget {
+  final Object error;
+  final StackTrace stackTrace;
+  
+  const ErrorScreen({
+    super.key,
+    required this.error,
+    required this.stackTrace,
+  });
 
-    // Check if user is admin and show admin dashboard if accessing admin route
-    // Main app
-    return const HomeScreen();
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppConstants.backgroundColor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.spacingL),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 64,
+                color: AppConstants.errorColor,
+              ),
+              const SizedBox(height: AppConstants.spacingL),
+              Text(
+                'Something went wrong',
+                style: Theme.of(context).textTheme.displaySmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+              Text(
+                error.toString(),
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppConstants.spacingXL),
+              ElevatedButton(
+                onPressed: () {
+                  // Restart app by navigating to wallet setup
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const WalletSetupScreen()),
+                    (route) => false,
+                  );
+                },
+                child: const Text('Restart App'),
+              ),
+              if (kDebugMode) ...[
+                const SizedBox(height: AppConstants.spacingM),
+                TextButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(
+                      text: 'Error: $error\n\nStack: $stackTrace',
+                    ));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error copied to clipboard')),
+                    );
+                  },
+                  child: const Text('Copy Error Details'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

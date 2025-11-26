@@ -1,10 +1,36 @@
 # Wallet Funding Guide
 
-This guide explains how to automatically fund new wallets with MATIC for gas fees.
+This guide explains how to automatically fund new wallets with MATIC for gas fees, and how to enable gasless transactions using ERC-4337 account abstraction.
 
 ## Overview
 
-When users create a new wallet, they need MATIC (Polygon's native token) to pay for gas fees. This guide covers several approaches to automatically fund wallets.
+When users create a new wallet, they traditionally need MATIC (Polygon's native token) to pay for gas fees. However, with ERC-4337 account abstraction and paymaster integration, **avatar creation is now gasless** - users don't need MATIC to create their first avatar!
+
+## Gasless Avatar Creation (Recommended)
+
+The app now supports **gasless avatar creation** using ERC-4337 account abstraction:
+
+- ✅ **No MATIC required** for users to create avatars
+- ✅ **Automatic sponsorship** via paymaster
+- ✅ **Better user experience** - no need to fund wallets first
+
+### Setup Gasless Avatar Creation
+
+1. **Deploy Paymaster** (see [CONTRACT_DEPLOYMENT_GUIDE.md](CONTRACT_DEPLOYMENT_GUIDE.md))
+2. **Configure Bundler** (see [BUNDLER_SETUP_GUIDE.md](BUNDLER_SETUP_GUIDE.md) or [QUICK_START_BUNDLER.md](QUICK_START_BUNDLER.md))
+3. **Enable Sponsorship**:
+   ```bash
+   cd contracts
+   npx hardhat run scripts/setup-paymaster-sponsorship.js --network amoy
+   ```
+
+For detailed instructions, see:
+- **[QUICK_START_BUNDLER.md](QUICK_START_BUNDLER.md)** - Quick 5-minute setup
+- **[BUNDLER_SETUP_GUIDE.md](BUNDLER_SETUP_GUIDE.md)** - Comprehensive guide
+
+## Traditional Wallet Funding (Fallback)
+
+If you're not using gasless transactions, or for other operations that require MATIC, this guide covers several approaches to automatically fund wallets.
 
 ## Approaches
 

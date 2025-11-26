@@ -1,6 +1,6 @@
 # SUPERSTAR AVATAR
 
-A decentralized social reputation mobile app for developing social aptitudes through gamification. Built with Flutter and integrated with the Polygon blockchain.
+A decentralized social reputation mobile app for developing social aptitudes through gamification. Built with Flutter and integrated with the Polygon blockchain. **Now featuring gasless avatar creation via ERC-4337 account abstraction!** **Now featuring gasless avatar creation via ERC-4337 account abstraction!**
 
 ## 🌟 Overview
 
@@ -30,6 +30,8 @@ SUPERSTAR AVATAR is a gameful social layer that enhances social experiences thro
 ### 🔗 Blockchain Integration
 - **Polygon Network**: Fast, low-cost transactions
 - **Smart Contracts**: Power verification, house membership, activity scripts
+- **ERC-4337 Account Abstraction**: Gasless transactions via paymaster
+- **Gasless Avatar Creation**: Users can create avatars without MATIC
 - **Decentralized Storage**: IPFS/Arweave for data storage
 - **Zero-Knowledge Proofs**: Privacy-preserving verification
 
@@ -80,10 +82,13 @@ For a complete setup guide, see **[SETUP_GUIDE.md](SETUP_GUIDE.md)** which cover
 - Prerequisites and installation
 - Smart contract deployment
 - Flutter application setup
+- **Gasless transactions setup** (ERC-4337 bundler)
 - Configuration
 - Running the application
 - Testing
 - Troubleshooting
+
+**New Feature**: Avatar creation is now **gasless**! See **[QUICK_START_BUNDLER.md](QUICK_START_BUNDLER.md)** for a 5-minute setup guide.
 
 ### Quick Installation
 
@@ -124,9 +129,14 @@ For a complete setup guide, see **[SETUP_GUIDE.md](SETUP_GUIDE.md)** which cover
    - Update smart contract addresses in `lib/constants/app_constants.dart`
    - Configure Polygon RPC URL for your environment
 
-2. **Environment Variables**
+2. **Gasless Transactions Setup** (Optional but Recommended)
+   - Set up bundler for ERC-4337 (see [BUNDLER_SETUP_GUIDE.md](BUNDLER_SETUP_GUIDE.md))
+   - Enable paymaster sponsorship (see [QUICK_START_BUNDLER.md](QUICK_START_BUNDLER.md))
+   - Configure bundler RPC URL in `lib/constants/app_constants.dart`
+
+3. **Environment Variables**
    - Create `.env` file in `contracts/` directory
-   - Add `PRIVATE_KEY`, `RPC_URL`, and `POLYGONSCAN_API_KEY`
+   - Add `PRIVATE_KEY`, `RPC_URL`, `POLYGONSCAN_API_KEY`, and `BUNDLER_RPC_URL`
 
 ## 📱 App Flow
 
@@ -135,10 +145,11 @@ For a complete setup guide, see **[SETUP_GUIDE.md](SETUP_GUIDE.md)** which cover
 - Secure mnemonic phrase generation
 - Polygon network connection
 
-### 2. Avatar Creation
+### 2. Avatar Creation (Gasless!)
 - Choose avatar name and bio
 - Learn about the five powers
 - Complete onboarding process
+- **No MATIC required** - Avatar creation is sponsored by the paymaster
 
 ### 3. Power Development
 - Complete activities to earn experience
@@ -203,6 +214,9 @@ flutter drive --target=test_driver/app.dart
 - **PowerVerification**: Tracks power progression and verification
 - **HouseMembership**: Manages house enrollment and membership
 - **ActivityScript**: Stores and verifies activity scripts
+- **GoldfirePaymaster**: ERC-4337 paymaster for gasless transactions
+- **SimpleAccountFactory**: ERC-4337 account factory for smart contract wallets
+- **GoldfireToken**: ERC-20 token for rewards and gas payments
 
 ### Network Configuration
 - **Mainnet**: Polygon mainnet for production
@@ -255,6 +269,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [x] Avatar creation
 - [x] Power system
 - [x] Basic activities
+- [x] Gasless avatar creation (ERC-4337)
+- [x] Paymaster integration
 
 ### Phase 2: Community Features 🚧
 - [ ] House system implementation

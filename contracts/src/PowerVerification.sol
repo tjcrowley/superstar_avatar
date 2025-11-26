@@ -29,17 +29,17 @@ contract PowerVerification is Initializable, OwnableUpgradeable, ReentrancyGuard
         
         // Initialize level requirements
         levelRequirements = [
-            0,    // Level 1
-            100,  // Level 2
-            250,  // Level 3
-            450,  // Level 4
-            700,  // Level 5
-            1000, // Level 6
-            1350, // Level 7
-            1750, // Level 8
-            2200, // Level 9
-            2700  // Level 10
-        ];
+        0,    // Level 1
+        100,  // Level 2
+        250,  // Level 3
+        450,  // Level 4
+        700,  // Level 5
+        1000, // Level 6
+        1350, // Level 7
+        1750, // Level 8
+        2200, // Level 9
+        2700  // Level 10
+    ];
     }
 
     /**

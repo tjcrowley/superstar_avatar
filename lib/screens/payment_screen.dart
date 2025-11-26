@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Card;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import '../constants/app_constants.dart';
@@ -75,13 +75,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _paymentIntentId = paymentIntent.paymentIntentId;
 
       // Confirm payment with Stripe
-      await Stripe.instance.confirmPayment(
-        paymentIntent.clientSecret,
-        PaymentSheetParams(
+      // Initialize payment sheet first
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
           paymentIntentClientSecret: paymentIntent.clientSecret,
           merchantDisplayName: 'Superstar Avatar',
         ),
       );
+      
+      // Present the payment sheet
+      await Stripe.instance.presentPaymentSheet();
 
       // Poll for payment status
       await _pollPaymentStatus(paymentIntent.paymentIntentId);
@@ -148,7 +151,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Wallet Address Display
-              Card(
+              Material(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -166,6 +181,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         ),
                       ),
                     ],
+                    ),
                   ),
                 ),
               ),

@@ -23,7 +23,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatar = ref.watch(avatarProvider);
+    final avatar = ref.watch(selectedAvatarProvider);
     
     if (avatar == null) {
       return const Scaffold(
@@ -86,7 +86,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildHomeTab() {
-    final avatar = ref.watch(avatarProvider)!;
+    final avatar = ref.watch(selectedAvatarProvider);
+    if (avatar == null) {
+      return const Scaffold(
+        body: Center(child: Text('No avatar selected')),
+      );
+    }
     final totalLevel = ref.watch(totalLevelProvider);
     final totalExperience = ref.watch(totalExperienceProvider);
     final isSuperstarAvatar = ref.watch(isSuperstarAvatarProvider);
@@ -338,7 +343,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildProfileTab() {
-    final avatar = ref.watch(avatarProvider)!;
+    final avatarNullable = ref.watch(selectedAvatarProvider);
+    
+    if (avatarNullable == null) {
+      return const Scaffold(
+        body: Center(child: Text('No avatar selected')),
+      );
+    }
+    
+    // Use non-null avatar for the rest of the method
+    final avatar = avatarNullable;
 
     return Scaffold(
       appBar: AppBar(
@@ -454,7 +468,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 );
                 
                 if (confirmed == true) {
-                  await ref.read(avatarProvider.notifier).clearAvatar();
+                  await ref.read(avatarProvider.notifier).clearAvatars();
                 }
               },
               child: const Text('Logout'),

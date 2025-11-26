@@ -42,7 +42,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
   }
 
   Future<void> _completeActivity(ActivityScript activity) async {
-    final avatar = ref.read(avatarProvider);
+    final avatar = ref.read(selectedAvatarProvider);
     if (avatar == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -59,7 +59,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
       // Complete activity on blockchain
       await blockchainService.completeActivity(
         activityId: activity.id,
-        avatarId: avatar.id,
+        avatarId: avatar?.id ?? '',
         proof: '',
       );
 
@@ -76,7 +76,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
       // through the activity completion flow.
       // TODO: Check if this is a house activity and use completeHouseActivity instead
       // TODO: Display Goldfire token reward in success message
-      final goldfireReward = BigInt.from(activity.experienceReward ~/ 100);
+          final goldfireReward = BigInt.from(activity.experienceReward ~/ 100);
       debugPrint('Activity completed! Earned ${activity.experienceReward} XP and ${goldfireReward} GF tokens');
 
       if (mounted) {

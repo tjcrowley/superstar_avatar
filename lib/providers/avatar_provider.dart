@@ -18,23 +18,23 @@ class AvatarsState {
   });
 
   Avatar? get selectedAvatar {
-    if (selectedAvatarId == null) return avatars.isNotEmpty ? avatars.first : null;
-    return avatars.firstWhere(
-      (avatar) => avatar.id == selectedAvatarId,
-      orElse: () => avatars.isNotEmpty ? avatars.first : Avatar(
-        id: '',
-        name: '',
-        powers: [],
-        createdAt: DateTime.now(),
-        lastActive: DateTime.now(),
-      ),
-    );
+    if (avatars.isEmpty) return null;
+    if (selectedAvatarId == null) return avatars.first;
+    try {
+      return avatars.firstWhere((avatar) => avatar.id == selectedAvatarId);
+    } catch (e) {
+      return avatars.first;
+    }
   }
 
-  Avatar? get primaryAvatar => avatars.firstWhere(
-    (avatar) => avatar.isPrimary,
-    orElse: () => avatars.isNotEmpty ? avatars.first : null,
-  );
+  Avatar? get primaryAvatar {
+    if (avatars.isEmpty) return null;
+    try {
+      return avatars.firstWhere((avatar) => avatar.isPrimary);
+    } catch (e) {
+      return avatars.first;
+    }
+  }
 
   bool get hasAvatar => avatars.isNotEmpty;
   bool get hasPrimaryAvatar => primaryAvatar != null;
@@ -154,6 +154,12 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
       await _saveAvatars();
     } catch (e) {
       debugPrint('Error creating primary avatar: $e');
+      // Re-throw with original message if it's already user-friendly
+      final errorMessage = e.toString();
+      if (errorMessage.contains('Insufficient funds') || 
+          errorMessage.contains('insufficient funds')) {
+        throw e; // Keep the helpful error message
+      }
       throw Exception('Failed to create primary avatar: $e');
     }
   }
@@ -241,17 +247,22 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
     String? bio,
     String? avatarImage,
   }) async {
-    if (state == null) throw Exception('No avatar to update');
+    if (state.selectedAvatar == null) throw Exception('No avatar to update');
 
     try {
-      final updatedAvatar = state!.copyWith(
+      final currentAvatar = state.selectedAvatar;
+      if (currentAvatar == null) throw Exception('No avatar selected');
+      
+      final updatedAvatar = currentAvatar.copyWith(
         name: name,
         bio: bio,
         avatarImage: avatarImage,
         lastActive: DateTime.now(),
       );
 
-      await _saveAvatar(updatedAvatar);
+      final updatedAvatars = state.avatars.map((a) => a.id == updatedAvatar.id ? updatedAvatar : a).toList();
+      state = state.copyWith(avatars: updatedAvatars);
+      await _saveAvatars();
     } catch (e) {
       throw Exception('Failed to update avatar: $e');
     }
@@ -503,7 +514,7 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
               bio: blockchainProfile['bio'] as String?,
               avatarImage: blockchainProfile['imageUri'] as String?,
               powers: updatedPowers,
-              houseId: houseId.isNotEmpty ? houseId : null,
+              houseId: (houseId?.isNotEmpty ?? false) ? houseId : null,
               isPrimary: blockchainProfile['isPrimary'] as bool? ?? false,
               lastActive: DateTime.fromMillisecondsSinceEpoch(
                 (blockchainProfile['updatedAt'] as int) * 1000,
@@ -602,27 +613,27 @@ final primaryAvatarProvider = Provider<Avatar?>((ref) {
 });
 
 final allAvatarsProvider = Provider<List<Avatar>>((ref) {
-  return ref.watch(avatarProvider).allAvatars;
+  return ref.watch(avatarProvider.notifier).allAvatars;
 });
 
 final houseAvatarsProvider = Provider<List<Avatar>>((ref) {
-  return ref.watch(avatarProvider).houseAvatars;
+  return ref.watch(avatarProvider.notifier).houseAvatars;
 });
 
 final isSuperstarAvatarProvider = Provider<bool>((ref) {
-  return ref.watch(avatarProvider).isSuperstarAvatar;
+  return ref.watch(avatarProvider.notifier).isSuperstarAvatar;
 });
 
 final totalLevelProvider = Provider<int>((ref) {
-  return ref.watch(avatarProvider).totalLevel;
+  return ref.watch(avatarProvider.notifier).totalLevel;
 });
 
 final totalExperienceProvider = Provider<int>((ref) {
-  return ref.watch(avatarProvider).totalExperience;
+  return ref.watch(avatarProvider.notifier).totalExperience;
 });
 
 final powersProvider = Provider<List<Power>>((ref) {
-  return ref.watch(avatarProvider).powers;
+  return ref.watch(avatarProvider.notifier).powers;
 });
 
 final currentHouseProvider = Provider<({String? id, String? name})>((ref) {

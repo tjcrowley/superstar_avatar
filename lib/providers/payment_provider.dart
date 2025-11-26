@@ -20,7 +20,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       final balanceMatic = balance / BigInt.from(10).pow(18);
       
       // Minimum balance: 0.01 MATIC
-      final hasBalance = balanceMatic >= BigInt.from(10000000000000000); // 0.01 MATIC in wei
+      final hasBalance = balanceMatic >= 10000000000000000; // 0.01 MATIC in wei
       
       state = state.copyWith(
         balance: balanceMatic.toDouble() / 1000000000000000000,

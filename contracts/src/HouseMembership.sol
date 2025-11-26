@@ -450,13 +450,13 @@ contract HouseMembership is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         // Otherwise, create pending activity for voting
         if (house.memberCount <= 1) {
             // Only leader, auto-approve
-            HouseActivity memory newActivity = HouseActivity({
-                activityId: activityId,
-                title: title,
-                description: description,
-                experienceReward: experienceReward,
-                completedBy: 0,
-                createdAt: block.timestamp,
+        HouseActivity memory newActivity = HouseActivity({
+            activityId: activityId,
+            title: title,
+            description: description,
+            experienceReward: experienceReward,
+            completedBy: 0,
+            createdAt: block.timestamp,
                 isActive: true,
                 isApproved: true,
                 proposer: msg.sender

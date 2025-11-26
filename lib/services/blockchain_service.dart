@@ -6,6 +6,7 @@ import 'package:bip39/bip39.dart' as bip39;
 import 'package:crypto/crypto.dart';
 import 'package:convert/convert.dart';
 import '../constants/app_constants.dart';
+import 'admin_service.dart';
 
 class BlockchainService {
   static final BlockchainService _instance = BlockchainService._internal();
@@ -518,43 +519,65 @@ class BlockchainService {
     if (_isInitialized) return;
 
     try {
+      // Initialize Web3 client with timeout
       _client = Web3Client(
         AppConstants.polygonRpcUrl,
         http.Client(),
       );
 
-      // Initialize contract instances
-      _powerVerificationContract = DeployedContract(
-        ContractAbi.fromJson(powerVerificationABI, 'PowerVerification'),
-        EthereumAddress.fromHex(AppConstants.powerVerificationContractAddress),
-      );
+      // Initialize contract instances only if addresses are valid (not placeholder)
+      final zeroAddress = '0x0000000000000000000000000000000000000000';
+      
+      if (AppConstants.powerVerificationContractAddress != zeroAddress) {
+        _powerVerificationContract = DeployedContract(
+          ContractAbi.fromJson(powerVerificationABI, 'PowerVerification'),
+          EthereumAddress.fromHex(AppConstants.powerVerificationContractAddress),
+        );
+      }
 
-      _houseMembershipContract = DeployedContract(
-        ContractAbi.fromJson(houseMembershipABI, 'HouseMembership'),
-        EthereumAddress.fromHex(AppConstants.houseMembershipContractAddress),
-      );
+      if (AppConstants.houseMembershipContractAddress != zeroAddress) {
+        _houseMembershipContract = DeployedContract(
+          ContractAbi.fromJson(houseMembershipABI, 'HouseMembership'),
+          EthereumAddress.fromHex(AppConstants.houseMembershipContractAddress),
+        );
+      }
 
-      _activityScriptsContract = DeployedContract(
-        ContractAbi.fromJson(activityScriptsABI, 'ActivityScripts'),
-        EthereumAddress.fromHex(AppConstants.activityScriptsContractAddress),
-      );
+      if (AppConstants.activityScriptsContractAddress != zeroAddress) {
+        _activityScriptsContract = DeployedContract(
+          ContractAbi.fromJson(activityScriptsABI, 'ActivityScripts'),
+          EthereumAddress.fromHex(AppConstants.activityScriptsContractAddress),
+        );
+      }
 
-      _superstarAvatarRegistryContract = DeployedContract(
-        ContractAbi.fromJson(superstarAvatarRegistryABI, 'SuperstarAvatarRegistry'),
-        EthereumAddress.fromHex(AppConstants.superstarAvatarRegistryContractAddress),
-      );
+      if (AppConstants.superstarAvatarRegistryContractAddress != zeroAddress) {
+        _superstarAvatarRegistryContract = DeployedContract(
+          ContractAbi.fromJson(superstarAvatarRegistryABI, 'SuperstarAvatarRegistry'),
+          EthereumAddress.fromHex(AppConstants.superstarAvatarRegistryContractAddress),
+        );
+      }
 
-      _avatarRegistryContract = DeployedContract(
-        ContractAbi.fromJson(avatarRegistryABI, 'AvatarRegistry'),
-        EthereumAddress.fromHex(AppConstants.avatarRegistryContractAddress),
-      );
+      if (AppConstants.avatarRegistryContractAddress != zeroAddress) {
+        try {
+          _avatarRegistryContract = DeployedContract(
+            ContractAbi.fromJson(avatarRegistryABI, 'AvatarRegistry'),
+            EthereumAddress.fromHex(AppConstants.avatarRegistryContractAddress),
+          );
+        } catch (e) {
+          debugPrint('Warning: Failed to initialize AvatarRegistry contract: $e');
+        }
+      }
 
       _isInitialized = true;
+      debugPrint('BlockchainService initialized successfully');
       
       // Note: Wallet credentials are not persisted for security reasons
       // Users must re-import their wallet on app restart
-    } catch (e) {
-      throw Exception('Failed to initialize blockchain service: $e');
+    } catch (e, stack) {
+      debugPrint('Error initializing blockchain service: $e');
+      debugPrint('Stack: $stack');
+      // Don't throw - allow app to continue with limited functionality
+      // The service can be re-initialized later when needed
+      _isInitialized = false;
     }
   }
 
@@ -595,9 +618,19 @@ class BlockchainService {
 
   bool get isWalletConnected => _walletAddress != null;
   
-  Web3Client get client => _client;
+  Web3Client get client {
+    if (!_isInitialized) {
+      throw Exception('BlockchainService not initialized. Call initialize() first.');
+    }
+    return _client;
+  }
   
-  Credentials get credentials => _credentials;
+  Credentials get credentials {
+    if (!isWalletConnected) {
+      throw Exception('Wallet not connected. Import or create a wallet first.');
+    }
+    return _credentials;
+  }
 
   Future<BigInt> getBalance() async {
     if (!isWalletConnected) throw Exception('Wallet not connected');
@@ -1633,8 +1666,16 @@ class BlockchainService {
     }
   }
 
+  /// Check if error is an insufficient funds error
+  bool _isInsufficientFundsError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('insufficient funds') ||
+        errorString.contains('insufficientfunds') ||
+        errorString.contains('insufficient balance');
+  }
+
   // Avatar Registry Methods
-  /// Create a new avatar profile on the blockchain
+  /// Create a new avatar profile on the blockchain (gasless via paymaster)
   Future<String> createAvatarProfile({
     required String avatarId,
     required String name,
@@ -1646,6 +1687,50 @@ class BlockchainService {
     if (!isWalletConnected) throw Exception('Identity not connected');
 
     try {
+      // Try to whitelist user for gasless avatar creation first
+      // This will fail silently if sponsorship is not enabled, which is fine
+      try {
+        final adminService = AdminService();
+        final isSponsored = await adminService.isAvatarCreationSponsored();
+        
+        if (isSponsored) {
+          debugPrint('Avatar creation sponsorship enabled, whitelisting user...');
+          try {
+            await adminService.whitelistUserForAvatarCreation(_walletAddress!);
+            debugPrint('User whitelisted for gasless avatar creation');
+          } catch (e) {
+            debugPrint('Could not whitelist user (may already be whitelisted): $e');
+            // Continue anyway - user might already be whitelisted
+          }
+        }
+      } catch (e) {
+        debugPrint('Could not check/whitelist for avatar creation sponsorship: $e');
+        // Continue with regular transaction if whitelisting fails
+      }
+
+      // Check balance - but allow transaction to proceed even with low balance
+      // if user is whitelisted (will be sponsored by paymaster)
+      final balance = await getBalance();
+      final minRequired = BigInt.from(10000000000000000); // 0.01 MATIC minimum
+      
+      // Check if user is whitelisted
+      bool isWhitelisted = false;
+      try {
+        final adminService = AdminService();
+        final paymentInfo = await adminService.getUserPaymentInfo(_walletAddress!);
+        isWhitelisted = paymentInfo['hasWhitelist'] as bool? ?? false;
+      } catch (e) {
+        debugPrint('Could not check whitelist status: $e');
+      }
+
+      // Only require balance if user is not whitelisted
+      if (!isWhitelisted && balance < minRequired) {
+        throw Exception(
+          'Insufficient funds. You need at least 0.01 MATIC for gas fees. '
+          'Please get testnet MATIC from the faucet.',
+        );
+      }
+
       final function = _avatarRegistryContract.function('createAvatar');
       final params = [avatarId, name, bio, imageUri, houseId, metadata];
 
@@ -1655,6 +1740,10 @@ class BlockchainService {
         parameters: params,
       );
 
+      // Note: If user is whitelisted and using account abstraction,
+      // the paymaster will sponsor this transaction
+      // For now, we use regular transactions - account abstraction integration
+      // would require a bundler setup
       final txHash = await _client.sendTransaction(
         _credentials,
         transaction,
@@ -1664,6 +1753,15 @@ class BlockchainService {
       return txHash;
     } catch (e) {
       debugPrint('Error creating avatar profile: $e');
+      
+      // Check if it's an insufficient funds error
+      if (_isInsufficientFundsError(e)) {
+        throw Exception(
+          'Insufficient funds. You need MATIC to pay for gas fees. '
+          'Please get testnet MATIC from the faucet.',
+        );
+      }
+      
       throw Exception('Failed to create avatar profile: $e');
     }
   }

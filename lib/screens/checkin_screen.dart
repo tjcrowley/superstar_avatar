@@ -27,6 +27,7 @@ class _CheckInScreenState extends ConsumerState<CheckInScreen> {
   
   bool _isScanning = true;
   bool _isProcessing = false;
+  String? _lastScannedData;
   final List<CheckInResult> _checkInHistory = [];
 
   @override

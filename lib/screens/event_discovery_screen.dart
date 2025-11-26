@@ -118,9 +118,7 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
               _showEventDetails(event);
             },
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            _getCategoryColor(event.category),
-          ),
+          icon: _getCategoryColor(event.category),
           onTap: () {
             _showEventDetails(event);
           },
@@ -136,21 +134,21 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
   BitmapDescriptor _getCategoryColor(EventCategory category) {
     switch (category) {
       case EventCategory.concert:
-        return BitmapDescriptor.hueRed;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
       case EventCategory.party:
-        return BitmapDescriptor.hueViolet;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet);
       case EventCategory.conference:
-        return BitmapDescriptor.hueBlue;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
       case EventCategory.workshop:
-        return BitmapDescriptor.hueGreen;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
       case EventCategory.festival:
-        return BitmapDescriptor.hueOrange;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
       case EventCategory.sports:
-        return BitmapDescriptor.hueYellow;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
       case EventCategory.theater:
-        return BitmapDescriptor.hueMagenta;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta);
       default:
-        return BitmapDescriptor.hueAzure;
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
     }
   }
 

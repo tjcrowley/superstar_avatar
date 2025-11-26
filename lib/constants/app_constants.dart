@@ -130,11 +130,16 @@ class AppConstants {
     10: 2700,
   };
 
-  // Blockchain Configuration
-  static const String polygonRpcUrl = 'https://polygon-rpc.com';
-  static const String polygonChainId = '137';
-  static const String polygonExplorerUrl = 'https://polygonscan.com';
-  
+// For Amoy Testnet
+  static const String polygonRpcUrl = 'https://rpc-amoy.polygon.technology';
+  static const String polygonChainId = '80002';
+  static const String polygonExplorerUrl = 'https://amoy.polygonscan.com';
+
+// For Polygon Mainnet
+// static const String polygonRpcUrl = 'https://polygon-rpc.com';
+// static const String polygonChainId = '137';
+// static const String polygonExplorerUrl = 'https://polygonscan.com';
+
   // Smart Contract Addresses (to be updated after deployment)
   // For development/testing, use these placeholder addresses
   // After deployment, replace with actual contract addresses
@@ -155,9 +160,19 @@ class AppConstants {
   static const String entryPointAddress = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
   
   // Bundler Configuration
+  // For Polygon Amoy testnet, you can use:
+  // - Pimlico: https://api.pimlico.io/v1/amoy/rpc?apikey=YOUR_API_KEY
+  // - Stackup: https://api.stackup.sh/v1/node/YOUR_API_KEY
+  // - Alchemy: https://polygon-amoy.g.alchemy.com/v2/YOUR_API_KEY
+  // 
+  // To use a bundler:
+  // 1. Sign up for a bundler service (Pimlico recommended)
+  // 2. Get your API key
+  // 3. Set BUNDLER_RPC_URL environment variable or update this default
+  // 4. See BUNDLER_SETUP_GUIDE.md for detailed instructions
   static const String bundlerRpcUrl = String.fromEnvironment(
     'BUNDLER_RPC_URL',
-    defaultValue: 'https://bundler.example.com/rpc',
+    defaultValue: 'https://api.pimlico.io/v1/amoy/rpc?apikey=YOUR_API_KEY',
   );
 
   // Storage Keys

@@ -42,6 +42,12 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     // User Goldfire token balances available for gas
     mapping(address => uint256) public userGoldfireBalances;
     
+    // Flag to enable automatic sponsorship of avatar creation for all users
+    bool public sponsorAvatarCreation;
+    
+    // Avatar Registry contract address (for validating avatar creation transactions)
+    address public avatarRegistry;
+    
     // Events
     event Deposited(address indexed user, uint256 amount, uint256 timestamp);
     event Withdrawn(address indexed user, uint256 amount, uint256 timestamp);
@@ -50,6 +56,8 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     event GoldfireGasPaid(address indexed user, uint256 goldfireAmount, uint256 gasCost, uint256 timestamp);
     event WhitelistUpdated(address indexed user, bool isWhitelisted, uint256 timestamp);
     event ConversionRateUpdated(uint256 oldRate, uint256 newRate, uint256 timestamp);
+    event AvatarCreationSponsorshipEnabled(bool enabled, uint256 timestamp);
+    event AvatarRegistryUpdated(address oldRegistry, address newRegistry, uint256 timestamp);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -142,6 +150,43 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     }
 
     /**
+     * @dev Enable/disable automatic sponsorship of avatar creation for all users (admin only)
+     * @param enabled True to enable automatic sponsorship
+     */
+    function setSponsorAvatarCreation(bool enabled) external {
+        require(adminRegistry.isAdmin(msg.sender), "Not an admin");
+        sponsorAvatarCreation = enabled;
+        emit AvatarCreationSponsorshipEnabled(enabled, block.timestamp);
+    }
+
+    /**
+     * @dev Set Avatar Registry contract address (admin only)
+     * @param _avatarRegistry Address of the Avatar Registry contract
+     */
+    function setAvatarRegistry(address _avatarRegistry) external {
+        require(adminRegistry.isAdmin(msg.sender), "Not an admin");
+        require(_avatarRegistry != address(0), "Invalid address");
+        address oldRegistry = avatarRegistry;
+        avatarRegistry = _avatarRegistry;
+        emit AvatarRegistryUpdated(oldRegistry, _avatarRegistry, block.timestamp);
+    }
+
+    /**
+     * @dev Automatically whitelist user for avatar creation (can be called by anyone)
+     * @dev This allows users to create their first avatar without MATIC
+     */
+    function whitelistForAvatarCreation(address user) external {
+        require(user != address(0), "Invalid address");
+        require(sponsorAvatarCreation, "Avatar creation sponsorship not enabled");
+        
+        // Only whitelist if user is not already whitelisted
+        if (!gaslessWhitelist[user]) {
+            gaslessWhitelist[user] = true;
+            emit WhitelistUpdated(user, true, block.timestamp);
+        }
+    }
+
+    /**
      * @dev Validate and pay for user operation (simplified ERC-4337 interface)
      * @param user Address of the user
      * @param gasCost Gas cost to pay
@@ -151,9 +196,22 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
         require(msg.sender == entryPoint, "Only EntryPoint can call");
         
         // Check if user is whitelisted for gasless transactions
+        // This includes users whitelisted for avatar creation
         if (gaslessWhitelist[user]) {
             // Gasless transaction - sponsored by admin
             require(address(this).balance >= gasCost, "Insufficient paymaster balance");
+            emit GasSponsored(user, gasCost, block.timestamp);
+            return true;
+        }
+        
+        // If avatar creation sponsorship is enabled, automatically sponsor
+        // Note: In a full ERC-4337 implementation, we would decode the callData
+        // to verify it's an avatar creation call. For now, we rely on whitelisting.
+        if (sponsorAvatarCreation) {
+            // Auto-whitelist and sponsor (for avatar creation flow)
+            gaslessWhitelist[user] = true;
+            require(address(this).balance >= gasCost, "Insufficient paymaster balance");
+            emit WhitelistUpdated(user, true, block.timestamp);
             emit GasSponsored(user, gasCost, block.timestamp);
             return true;
         }

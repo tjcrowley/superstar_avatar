@@ -33,7 +33,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   void _initializeControllers() {
-    final avatar = ref.read(avatarProvider);
+    final avatar = ref.read(selectedAvatarProvider);
     if (_nameController.text.isEmpty) {
       _nameController.text = avatar?.name ?? '';
     }
@@ -137,7 +137,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     });
 
     try {
-      final avatar = ref.read(avatarProvider);
+      final avatar = ref.read(selectedAvatarProvider);
       if (avatar == null) {
         throw Exception('No avatar found');
       }
@@ -215,7 +215,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatar = ref.watch(avatarProvider);
+    final avatar = ref.watch(selectedAvatarProvider);
     _initializeControllers();
 
     return Scaffold(
