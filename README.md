@@ -74,13 +74,18 @@ lib/
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Flutter SDK (3.6.2 or higher)
-- Dart SDK (3.6.2 or higher)
-- Android Studio / VS Code
-- Android/iOS device or emulator
+### Quick Start
 
-### Installation
+For a complete setup guide, see **[SETUP_GUIDE.md](SETUP_GUIDE.md)** which covers:
+- Prerequisites and installation
+- Smart contract deployment
+- Flutter application setup
+- Configuration
+- Running the application
+- Testing
+- Troubleshooting
+
+### Quick Installation
 
 1. **Clone the repository**
    ```bash
@@ -88,26 +93,40 @@ lib/
    cd superstar_avatar
    ```
 
-2. **Install dependencies**
+2. **Setup Smart Contracts**
    ```bash
-   flutter pub get
+   cd contracts
+   npm install
+   # Create .env file with PRIVATE_KEY and RPC URLs
+   npm run compile
+   npm run deploy:all:amoy  # For testnet
    ```
 
-3. **Run the app**
+3. **Setup Flutter App**
    ```bash
+   cd ..
+   flutter pub get
+   # Update contract addresses in lib/constants/app_constants.dart
    flutter run
    ```
+
+### Prerequisites
+- Flutter SDK (3.6.2 or higher)
+- Node.js (v16 or higher)
+- Android Studio / VS Code
+- Android/iOS device or emulator
+- Polygon wallet with MATIC for gas fees
 
 ### Configuration
 
 1. **Blockchain Setup**
+   - Deploy contracts (see [CONTRACT_DEPLOYMENT_GUIDE.md](CONTRACT_DEPLOYMENT_GUIDE.md))
    - Update smart contract addresses in `lib/constants/app_constants.dart`
    - Configure Polygon RPC URL for your environment
-   - Set up IPFS/Arweave endpoints
 
 2. **Environment Variables**
-   - Create `.env` file for API keys and configuration
-   - Update blockchain network settings
+   - Create `.env` file in `contracts/` directory
+   - Add `PRIVATE_KEY`, `RPC_URL`, and `POLYGONSCAN_API_KEY`
 
 ## 📱 App Flow
 
