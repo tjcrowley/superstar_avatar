@@ -6,6 +6,8 @@ import '../constants/app_constants.dart';
 import '../services/blockchain_service.dart';
 import '../services/faucet_service.dart';
 import '../services/payment_service.dart';
+import '../services/account_abstraction_service.dart';
+import '../services/admin_service.dart';
 import '../providers/wallet_provider.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/secure_text_field.dart';
@@ -49,6 +51,33 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
 
       if (walletAddress == null) {
         throw Exception('Failed to get wallet address after creation');
+      }
+
+      // Create smart contract account via Account Factory (gasless initial setup)
+      try {
+        final aaService = AccountAbstractionService();
+        final adminService = AdminService();
+        
+        // Check if user should be whitelisted for gasless setup
+        // For now, we'll attempt to create the account
+        // The paymaster will sponsor if user is whitelisted
+        final accountTxHash = await aaService.createAccount();
+        debugPrint('Smart contract account creation submitted: $accountTxHash');
+        
+        // Add user to paymaster whitelist for initial setup (if admin)
+        // In production, this should be done by a backend service
+        final isAdmin = await adminService.isAdmin();
+        if (isAdmin) {
+          try {
+            await adminService.addUserToWhitelist(walletAddress);
+            debugPrint('User added to paymaster whitelist');
+          } catch (e) {
+            debugPrint('Could not add user to whitelist (may not be admin): $e');
+          }
+        }
+      } catch (e) {
+        debugPrint('Error creating smart contract account: $e');
+        // Continue with wallet creation even if SCA creation fails
       }
 
       // Store wallet info temporarily

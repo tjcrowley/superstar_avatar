@@ -5,8 +5,24 @@ import '../models/activity_script.dart';
 import '../providers/avatar_provider.dart';
 import '../providers/activities_provider.dart';
 import '../services/blockchain_service.dart';
+import '../services/goldfire_token_service.dart';
+import '../services/admin_service.dart';
 import '../widgets/gradient_button.dart';
 import 'activity_authoring_screen.dart';
+
+// TODO: House Activity Voting System
+// This screen will be enhanced to support:
+// 1. Display pending activities that require voting
+// 2. Show voting UI with For/Against buttons
+// 3. Display vote counts and current voting status
+// 4. Allow house leaders to directly approve activities
+// 5. Show Goldfire token rewards for completed activities
+// 
+// Voting Flow:
+// - If house has multiple members: Activities require voting (min 2 votes to approve)
+// - If house has only leader: Activities auto-approve
+// - Leader can bypass voting and directly approve
+// - Completed activities automatically mint Goldfire tokens (1 GF per 100 XP)
 
 class ActivitiesScreen extends ConsumerStatefulWidget {
   const ActivitiesScreen({super.key});
@@ -55,11 +71,23 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
         );
       }
 
+      // Goldfire tokens are now automatically minted by the HouseMembership contract
+      // when completing house activities. For regular activities, tokens are minted
+      // through the activity completion flow.
+      // TODO: Check if this is a house activity and use completeHouseActivity instead
+      // TODO: Display Goldfire token reward in success message
+      final goldfireReward = BigInt.from(activity.experienceReward ~/ 100);
+      debugPrint('Activity completed! Earned ${activity.experienceReward} XP and ${goldfireReward} GF tokens');
+
       if (mounted) {
+        final goldfireReward = activity.experienceReward ~/ 100;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Activity completed! +${activity.experienceReward} XP'),
+            content: Text(
+              'Activity completed! +${activity.experienceReward} XP${goldfireReward > 0 ? ' + $goldfireReward GF tokens' : ''}',
+            ),
             backgroundColor: AppConstants.successColor,
+            duration: const Duration(seconds: 3),
           ),
         );
         
@@ -352,6 +380,31 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
             
             const SizedBox(height: AppConstants.spacingM),
             
+            // Goldfire Token Reward Indicator
+            if (activity.experienceReward > 0) ...[
+              Container(
+                padding: const EdgeInsets.all(AppConstants.spacingS),
+                decoration: BoxDecoration(
+                  color: AppConstants.warningColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppConstants.borderRadiusS),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on, size: 16, color: AppConstants.warningColor),
+                    const SizedBox(width: AppConstants.spacingXS),
+                    Text(
+                      'Reward: ${activity.experienceReward ~/ 100} GF tokens',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppConstants.warningColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+            ],
+            
             // Action Buttons
             Row(
               children: [
@@ -372,6 +425,14 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
                 ),
               ],
             ),
+            
+            // TODO: Add voting UI for house activities
+            // This will show pending activities that need voting
+            // and allow users to vote for/against proposed activities
+            // Example:
+            // if (activity.isPending) {
+            //   _buildVotingSection(activity);
+            // }
           ],
         ),
       ),

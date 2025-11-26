@@ -146,6 +146,19 @@ class AppConstants {
   static const String eventListingsContractAddress = '0x0000000000000000000000000000000000000000';
   static const String ticketingContractAddress = '0x0000000000000000000000000000000000000000';
   static const String avatarRegistryContractAddress = '0x0000000000000000000000000000000000000000';
+  
+  // ERC-4337 Account Abstraction Contracts
+  static const String goldfireTokenContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String adminRegistryContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String accountFactoryContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String paymasterContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String entryPointAddress = '0x0000000000000000000000000000000000000000';
+  
+  // Bundler Configuration
+  static const String bundlerRpcUrl = String.fromEnvironment(
+    'BUNDLER_RPC_URL',
+    defaultValue: 'https://bundler.example.com/rpc',
+  );
 
   // Storage Keys
   static const String userPreferencesKey = 'user_preferences';

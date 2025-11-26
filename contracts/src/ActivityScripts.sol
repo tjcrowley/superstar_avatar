@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title ActivityScripts
  * @dev Manages activity scripts and their verification for Superstar Avatar system
+ * @dev Upgradeable using UUPS proxy pattern
  */
-contract ActivityScripts is Ownable, ReentrancyGuard {
+contract ActivityScripts is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     // Power types enum
     enum PowerType { Courage, Creativity, Connection, Insight, Kindness }
 
@@ -132,7 +135,16 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
         uint256 timestamp
     );
 
-    constructor() Ownable(msg.sender) {}
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+    }
 
     /**
      * @dev Get activities by activity type
@@ -550,4 +562,9 @@ contract ActivityScripts is Ownable, ReentrancyGuard {
             activityScripts[activityId].completedCount--;
         }
     }
+
+    /**
+     * @dev Authorize upgrade (only owner)
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 } 

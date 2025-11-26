@@ -8,6 +8,8 @@ import '../widgets/avatar_profile_card.dart';
 import 'activities_screen.dart';
 import 'settings_screen.dart';
 import 'event_discovery_screen.dart';
+import 'admin_dashboard_screen.dart';
+import '../services/admin_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});

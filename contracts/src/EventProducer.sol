@@ -1,15 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title EventProducer
  * @dev Manages event producer registration and verification
+ * @dev Upgradeable using UUPS proxy pattern
  */
-contract EventProducer is Ownable, ReentrancyGuard {
-    constructor() Ownable(msg.sender) {}
+contract EventProducer is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+    }
 
     // Event Producer structure
     struct Producer {
@@ -225,6 +237,58 @@ contract EventProducer is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Register a producer on behalf of another address (owner only)
+     * @param producerId Producer ID
+     * @param avatarId Avatar ID
+     * @param name Producer name
+     * @param description Producer description
+     * @param walletAddress Wallet address of the producer
+     * @param metadata Additional metadata
+     */
+    function adminRegisterProducer(
+        string memory producerId,
+        string memory avatarId,
+        string memory name,
+        string memory description,
+        address walletAddress,
+        string memory metadata
+    ) external onlyOwner validProducerId(producerId) nonReentrant {
+        require(bytes(producers[producerId].producerId).length == 0, "Producer already registered");
+        require(bytes(avatarId).length > 0, "Avatar ID cannot be empty");
+        require(bytes(name).length > 0, "Name cannot be empty");
+        require(walletAddress != address(0), "Invalid wallet address");
+        require(bytes(avatarToProducerId[avatarId]).length == 0, "Avatar already registered as producer");
+        require(bytes(addressToProducerId[walletAddress]).length == 0, "Address already registered as producer");
+
+        _producerIds++;
+
+        Producer memory newProducer = Producer({
+            producerId: producerId,
+            avatarId: avatarId,
+            name: name,
+            description: description,
+            stripeAccountId: "",
+            walletAddress: walletAddress,
+            createdAt: block.timestamp,
+            lastActive: block.timestamp,
+            totalEvents: 0,
+            totalTicketsSold: 0,
+            totalRevenue: 0,
+            isVerified: true, // Auto-verify when registered by admin
+            isActive: true,
+            metadata: metadata
+        });
+
+        producers[producerId] = newProducer;
+        addressToProducerId[walletAddress] = producerId;
+        avatarToProducerId[avatarId] = producerId;
+        verifiedProducers[producerId] = true;
+
+        emit ProducerRegistered(producerId, avatarId, name, walletAddress, block.timestamp);
+        emit ProducerVerified(producerId, true, block.timestamp);
+    }
+
+    /**
      * @dev Authorize or revoke contract authorization (owner only)
      * @param contractAddress Address of the contract to authorize/revoke
      * @param authorized Whether to authorize the contract
@@ -303,5 +367,10 @@ contract EventProducer is Ownable, ReentrancyGuard {
         delete avatarToProducerId[producer.avatarId];
         delete producers[producerId];
     }
+
+    /**
+     * @dev Authorize upgrade (only owner)
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
 

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
 import '../providers/wallet_provider.dart';
 import '../services/secure_storage_service.dart';
+import '../services/blockchain_service.dart';
+import 'gas_payment_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {

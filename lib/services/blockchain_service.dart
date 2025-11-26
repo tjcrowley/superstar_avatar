@@ -139,6 +139,102 @@ class BlockchainService {
         "outputs": [{"name": "houseId", "type": "string"}],
         "stateMutability": "view",
         "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "houseId", "type": "string"},
+          {"name": "title", "type": "string"},
+          {"name": "description", "type": "string"},
+          {"name": "experienceReward", "type": "uint256"}
+        ],
+        "name": "proposeHouseActivity",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "houseId", "type": "string"},
+          {"name": "activityId", "type": "string"},
+          {"name": "inFavor", "type": "bool"}
+        ],
+        "name": "voteOnActivity",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "houseId", "type": "string"},
+          {"name": "activityId", "type": "string"}
+        ],
+        "name": "leaderApproveActivity",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "houseId", "type": "string"},
+          {"name": "activityId", "type": "string"},
+          {"name": "avatarId", "type": "string"}
+        ],
+        "name": "completeActivity",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "houseId", "type": "string"}],
+        "name": "getPendingActivities",
+        "outputs": [{"name": "pendingActivityIds", "type": "string[]"}],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "activityId", "type": "string"}],
+        "name": "getPendingActivity",
+        "outputs": [
+          {"name": "activityId", "type": "string"},
+          {"name": "title", "type": "string"},
+          {"name": "description", "type": "string"},
+          {"name": "experienceReward", "type": "uint256"},
+          {"name": "proposer", "type": "address"},
+          {"name": "createdAt", "type": "uint256"},
+          {"name": "votesFor", "type": "uint256"},
+          {"name": "votesAgainst", "type": "uint256"},
+          {"name": "isApproved", "type": "bool"},
+          {"name": "isRejected", "type": "bool"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [{"name": "activityId", "type": "string"}],
+        "name": "getActivityVotes",
+        "outputs": [
+          {
+            "components": [
+              {"name": "voter", "type": "address"},
+              {"name": "inFavor", "type": "bool"},
+              {"name": "timestamp", "type": "uint256"}
+            ],
+            "name": "votes",
+            "type": "tuple[]"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {"name": "activityId", "type": "string"},
+          {"name": "voter", "type": "address"}
+        ],
+        "name": "checkHasVoted",
+        "outputs": [{"name": "hasVotedOnActivity", "type": "bool"}],
+        "stateMutability": "view",
+        "type": "function"
       }
     ]
   ''';
@@ -498,6 +594,10 @@ class BlockchainService {
   String? get walletAddress => _walletAddress;
 
   bool get isWalletConnected => _walletAddress != null;
+  
+  Web3Client get client => _client;
+  
+  Credentials get credentials => _credentials;
 
   Future<BigInt> getBalance() async {
     if (!isWalletConnected) throw Exception('Wallet not connected');
@@ -736,6 +836,231 @@ class BlockchainService {
       };
     } catch (e) {
       return null;
+    }
+  }
+
+  // House Activity Voting Methods
+  
+  /// Propose a new house activity (requires voting if multiple members)
+  Future<String> proposeHouseActivity({
+    required String houseId,
+    required String title,
+    required String description,
+    required int experienceReward,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _houseMembershipContract.function('proposeHouseActivity');
+      final params = [
+        houseId,
+        title,
+        description,
+        BigInt.from(experienceReward),
+      ];
+
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      throw Exception('Failed to propose house activity: $e');
+    }
+  }
+
+  /// Vote on a pending activity
+  Future<String> voteOnActivity({
+    required String houseId,
+    required String activityId,
+    required bool inFavor,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _houseMembershipContract.function('voteOnActivity');
+      final params = [houseId, activityId, inFavor];
+
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      throw Exception('Failed to vote on activity: $e');
+    }
+  }
+
+  /// Leader can directly approve activity (bypass voting)
+  Future<String> leaderApproveActivity({
+    required String houseId,
+    required String activityId,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _houseMembershipContract.function('leaderApproveActivity');
+      final params = [houseId, activityId];
+
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      throw Exception('Failed to approve activity: $e');
+    }
+  }
+
+  /// Complete a house activity (mints Goldfire tokens)
+  Future<String> completeHouseActivity({
+    required String houseId,
+    required String activityId,
+    required String avatarId,
+  }) async {
+    if (!isWalletConnected) throw Exception('Wallet not connected');
+
+    try {
+      final function = _houseMembershipContract.function('completeActivity');
+      final params = [houseId, activityId, avatarId];
+
+      final transaction = Transaction.callContract(
+        contract: _houseMembershipContract,
+        function: function,
+        parameters: params,
+      );
+
+      final txHash = await _client.sendTransaction(
+        _credentials,
+        transaction,
+        chainId: int.parse(AppConstants.polygonChainId),
+      );
+
+      return txHash;
+    } catch (e) {
+      throw Exception('Failed to complete house activity: $e');
+    }
+  }
+
+  /// Get pending activities for a house
+  Future<List<String>> getPendingActivities(String houseId) async {
+    try {
+      final function = _houseMembershipContract.function('getPendingActivities');
+      final params = [houseId];
+
+      final result = await _client.call(
+        contract: _houseMembershipContract,
+        function: function,
+        params: params,
+      );
+
+      return (result[0] as List).map((e) => e.toString()).toList();
+    } catch (e) {
+      debugPrint('Error getting pending activities: $e');
+      return [];
+    }
+  }
+
+  /// Get pending activity details
+  Future<Map<String, dynamic>?> getPendingActivity(String activityId) async {
+    try {
+      final function = _houseMembershipContract.function('getPendingActivity');
+      final params = [activityId];
+
+      final result = await _client.call(
+        contract: _houseMembershipContract,
+        function: function,
+        params: params,
+      );
+
+      return {
+        'activityId': result[0] as String,
+        'title': result[1] as String,
+        'description': result[2] as String,
+        'experienceReward': (result[3] as BigInt).toInt(),
+        'proposer': result[4] as String,
+        'createdAt': (result[5] as BigInt).toInt(),
+        'votesFor': (result[6] as BigInt).toInt(),
+        'votesAgainst': (result[7] as BigInt).toInt(),
+        'isApproved': result[8] as bool,
+        'isRejected': result[9] as bool,
+      };
+    } catch (e) {
+      debugPrint('Error getting pending activity: $e');
+      return null;
+    }
+  }
+
+  /// Get votes for an activity
+  Future<List<Map<String, dynamic>>> getActivityVotes(String activityId) async {
+    try {
+      final function = _houseMembershipContract.function('getActivityVotes');
+      final params = [activityId];
+
+      final result = await _client.call(
+        contract: _houseMembershipContract,
+        function: function,
+        params: params,
+      );
+
+      final votes = result[0] as List;
+      return votes.map((vote) => {
+        'voter': (vote[0] as EthereumAddress).hex,
+        'inFavor': vote[1] as bool,
+        'timestamp': (vote[2] as BigInt).toInt(),
+      }).toList();
+    } catch (e) {
+      debugPrint('Error getting activity votes: $e');
+      return [];
+    }
+  }
+
+  /// Check if address has voted on activity
+  Future<bool> checkHasVoted({
+    required String activityId,
+    required String voterAddress,
+  }) async {
+    try {
+      final function = _houseMembershipContract.function('checkHasVoted');
+      final params = [
+        activityId,
+        EthereumAddress.fromHex(voterAddress),
+      ];
+
+      final result = await _client.call(
+        contract: _houseMembershipContract,
+        function: function,
+        params: params,
+      );
+
+      return result[0] as bool;
+    } catch (e) {
+      debugPrint('Error checking vote status: $e');
+      return false;
     }
   }
 

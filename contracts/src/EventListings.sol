@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./EventProducer.sol";
 
 /**
  * @title EventListings
  * @dev Manages real-world event listings created by event producers
  */
-contract EventListings is Ownable, ReentrancyGuard {
+contract EventListings is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
 
     // Event structure
     struct Event {
@@ -112,13 +114,27 @@ contract EventListings is Ownable, ReentrancyGuard {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @dev Constructor
+     * @dev Initialize function for upgradeable contract
      * @param _eventProducer Address of EventProducer contract
      */
-    constructor(address _eventProducer) Ownable(msg.sender) {
+    function initialize(address _eventProducer) public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+        require(_eventProducer != address(0), "Invalid EventProducer address");
         eventProducer = EventProducer(_eventProducer);
     }
+
+    /**
+     * @dev Authorize upgrade (only owner)
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @dev Create a new event listing

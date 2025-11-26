@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./EventListings.sol";
 import "./EventProducer.sol";
@@ -12,7 +14,7 @@ import "./EventProducer.sol";
  * @dev Manages ticket sales for events
  * Note: This contract handles on-chain ticket records. Actual payment processing happens off-chain via Stripe.
  */
-contract Ticketing is Ownable, ReentrancyGuard {
+contract Ticketing is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
 
     // Ticket structure
     struct Ticket {
@@ -126,19 +128,27 @@ contract Ticketing is Ownable, ReentrancyGuard {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @dev Constructor
+     * @dev Initialize function for upgradeable contract
      * @param _eventListings Address of EventListings contract
      * @param _eventProducer Address of EventProducer contract
      * @param _feePercentage Initial platform fee percentage (e.g., 500 = 5%)
      * @param _feeRecipient Address to receive platform fees
      */
-    constructor(
+    function initialize(
         address _eventListings,
         address _eventProducer,
         uint256 _feePercentage,
         address _feeRecipient
-    ) Ownable(msg.sender) {
+    ) public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
         require(_eventListings != address(0), "Invalid EventListings address");
         require(_eventProducer != address(0), "Invalid EventProducer address");
         require(_feeRecipient != address(0), "Invalid fee recipient address");
@@ -151,6 +161,11 @@ contract Ticketing is Ownable, ReentrancyGuard {
             feeRecipient: _feeRecipient
         });
     }
+
+    /**
+     * @dev Authorize upgrade (only owner)
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @dev Create ticket after Stripe payment is confirmed

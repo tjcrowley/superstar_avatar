@@ -39,10 +39,11 @@ class SuperstarAvatarApp extends ConsumerWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
-      home: const AppRouter(),
-      routes: {
-        '/edit-profile': (context) => const EditProfileScreen(),
-      },
+        home: const AppRouter(),
+          routes: {
+            '/edit-profile': (context) => const EditProfileScreen(),
+            '/admin': (context) => const AdminDashboardScreen(),
+          },
     );
   }
 
@@ -181,6 +182,7 @@ class AppRouter extends ConsumerWidget {
       return const OnboardingScreen();
     }
 
+    // Check if user is admin and show admin dashboard if accessing admin route
     // Main app
     return const HomeScreen();
   }
