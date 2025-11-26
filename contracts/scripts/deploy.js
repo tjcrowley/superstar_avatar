@@ -1,4 +1,5 @@
-const { ethers } = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
+const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
@@ -28,26 +29,39 @@ async function main() {
     console.warn("\n   Continuing anyway, but deployment may fail if balance is insufficient...\n");
   }
 
-  // Deploy PowerVerification contract
-  console.log("\nDeploying PowerVerification contract...");
+  // Deploy PowerVerification contract (upgradeable)
+  console.log("\nDeploying PowerVerification contract (upgradeable)...");
   const PowerVerification = await ethers.getContractFactory("PowerVerification");
-  const powerVerification = await PowerVerification.deploy();
+  const powerVerification = await upgrades.deployProxy(
+    PowerVerification,
+    [],
+    { initializer: "initialize", kind: "uups" }
+  );
   await powerVerification.waitForDeployment();
   const powerVerificationAddress = await powerVerification.getAddress();
   console.log("PowerVerification deployed to:", powerVerificationAddress);
 
-  // Deploy HouseMembership contract
-  console.log("\nDeploying HouseMembership contract...");
+  // Deploy HouseMembership contract (upgradeable, but needs initialization later)
+  // We'll deploy it now but initialize it after other contracts are deployed
+  console.log("\nDeploying HouseMembership contract (upgradeable)...");
   const HouseMembership = await ethers.getContractFactory("HouseMembership");
-  const houseMembership = await HouseMembership.deploy();
+  const houseMembership = await upgrades.deployProxy(
+    HouseMembership,
+    [],
+    { initializer: false, kind: "uups" }
+  );
   await houseMembership.waitForDeployment();
   const houseMembershipAddress = await houseMembership.getAddress();
   console.log("HouseMembership deployed to:", houseMembershipAddress);
 
-  // Deploy ActivityScripts contract
-  console.log("\nDeploying ActivityScripts contract...");
+  // Deploy ActivityScripts contract (upgradeable)
+  console.log("\nDeploying ActivityScripts contract (upgradeable)...");
   const ActivityScripts = await ethers.getContractFactory("ActivityScripts");
-  const activityScripts = await ActivityScripts.deploy();
+  const activityScripts = await upgrades.deployProxy(
+    ActivityScripts,
+    [],
+    { initializer: "initialize", kind: "uups" }
+  );
   await activityScripts.waitForDeployment();
   const activityScriptsAddress = await activityScripts.getAddress();
   console.log("ActivityScripts deployed to:", activityScriptsAddress);
@@ -60,36 +74,50 @@ async function main() {
   const superstarAvatarRegistryAddress = await superstarAvatarRegistry.getAddress();
   console.log("SuperstarAvatarRegistry deployed to:", superstarAvatarRegistryAddress);
 
-  // Deploy EventProducer contract
-  console.log("\nDeploying EventProducer contract...");
+  // Deploy EventProducer contract (upgradeable)
+  console.log("\nDeploying EventProducer contract (upgradeable)...");
   const EventProducer = await ethers.getContractFactory("EventProducer");
-  const eventProducer = await EventProducer.deploy();
+  const eventProducer = await upgrades.deployProxy(
+    EventProducer,
+    [],
+    { initializer: "initialize", kind: "uups" }
+  );
   await eventProducer.waitForDeployment();
   const eventProducerAddress = await eventProducer.getAddress();
   console.log("EventProducer deployed to:", eventProducerAddress);
 
-  // Deploy EventListings contract (requires EventProducer address)
-  console.log("\nDeploying EventListings contract...");
+  // Deploy EventListings contract (upgradeable, requires EventProducer address)
+  console.log("\nDeploying EventListings contract (upgradeable)...");
   const EventListings = await ethers.getContractFactory("EventListings");
-  const eventListings = await EventListings.deploy(eventProducerAddress);
+  const eventListings = await upgrades.deployProxy(
+    EventListings,
+    [eventProducerAddress],
+    { initializer: "initialize", kind: "uups" }
+  );
   await eventListings.waitForDeployment();
   const eventListingsAddress = await eventListings.getAddress();
   console.log("EventListings deployed to:", eventListingsAddress);
 
-  // Deploy Ticketing contract (requires EventListings and EventProducer addresses)
-  console.log("\nDeploying Ticketing contract...");
+  // Deploy Ticketing contract (upgradeable, requires EventListings and EventProducer addresses)
+  console.log("\nDeploying Ticketing contract (upgradeable)...");
   const Ticketing = await ethers.getContractFactory("Ticketing");
   // Platform fee: 5% (500 basis points), fee recipient is deployer
   const platformFeePercentage = 500; // 5%
-  const ticketing = await Ticketing.deploy(
-    eventListingsAddress,
-    eventProducerAddress,
-    platformFeePercentage,
-    deployer.address
+  const ticketing = await upgrades.deployProxy(
+    Ticketing,
+    [eventListingsAddress, eventProducerAddress, platformFeePercentage, deployer.address],
+    { initializer: "initialize", kind: "uups" }
   );
   await ticketing.waitForDeployment();
   const ticketingAddress = await ticketing.getAddress();
   console.log("Ticketing deployed to:", ticketingAddress);
+  
+  // Initialize HouseMembership now that we have all required addresses
+  // Note: HouseMembership needs GoldfireToken, EventProducer, and EventListings
+  // For now, we'll skip initialization if GoldfireToken isn't deployed
+  // You should use deploy-all-upgradeable.js for complete deployment
+  console.log("\n⚠️  Note: HouseMembership requires GoldfireToken for full initialization.");
+  console.log("   Use 'npm run deploy:all:amoy' for complete deployment with all contracts.");
 
   // Create some initial achievements
   console.log("\nCreating initial achievements...");
@@ -212,7 +240,7 @@ async function main() {
 
   // Save deployment addresses
   const deploymentInfo = {
-    network: network.name,
+    network: hre.network.name,
     deployer: deployer.address,
     contracts: {
       PowerVerification: powerVerificationAddress,
