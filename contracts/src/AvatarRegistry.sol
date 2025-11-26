@@ -4,13 +4,18 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title AvatarRegistry
  * @dev Manages avatar profiles on-chain with upgradable proxy pattern
  * @dev Stores avatar metadata including name, bio, image URI, and wallet address
  */
-contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
     
     // Avatar profile structure
     struct AvatarProfile {
@@ -90,7 +95,13 @@ contract AvatarRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
     function initialize(address initialOwner) public initializer {
         __Ownable_init(initialOwner);
         __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
     }
+
+    /**
+     * @dev Authorize upgrade (only owner)
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @dev Create a new avatar profile

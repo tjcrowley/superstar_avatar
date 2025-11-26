@@ -29,10 +29,10 @@ contract HouseMembership is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     EventListings public eventListings;
     
     // Minimum votes required for activity approval (default: 2)
-    uint256 public minVotesRequired = 2;
+    uint256 public minVotesRequired;
     
     // Goldfire token reward per experience point (1 GF per 100 XP by default)
-    uint256 public goldfirePerExperience = 100;
+    uint256 public goldfirePerExperience;
 
     function initialize(
         address _goldfireToken,
@@ -48,6 +48,10 @@ contract HouseMembership is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         goldfireToken = GoldfireToken(_goldfireToken);
         eventProducer = EventProducer(_eventProducer);
         eventListings = EventListings(_eventListings);
+        
+        // Initialize default values
+        minVotesRequired = 2;
+        goldfirePerExperience = 100;
     }
     
     /**

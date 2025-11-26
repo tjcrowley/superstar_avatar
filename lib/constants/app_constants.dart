@@ -138,21 +138,21 @@ class AppConstants {
   // Smart Contract Addresses (to be updated after deployment)
   // For development/testing, use these placeholder addresses
   // After deployment, replace with actual contract addresses
-  static const String powerVerificationContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String houseMembershipContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String activityScriptsContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String superstarAvatarRegistryContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String eventProducerContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String eventListingsContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String ticketingContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String avatarRegistryContractAddress = '0x0000000000000000000000000000000000000000';
+  static const String powerVerificationContractAddress = '0x3F04ad6dF1769D933caEce6162DEc209BFE7AAC1';
+  static const String houseMembershipContractAddress = '0x1B9c2eDE3ee0081d068F413d7Ae4aF70957DDc17';
+  static const String activityScriptsContractAddress = '0x5674c295eE6787F09b8e464E83C576686982A7db';
+  static const String superstarAvatarRegistryContractAddress = '0x88E159eC0CceB9896158f3a36e0f4239125eD10d';
+  static const String eventProducerContractAddress = '0x6dF7c44436Df4410d79C569744e08437403Fe79b';
+  static const String eventListingsContractAddress = '0xc15ea2017F8d675e4C80fe63874FC636dE6bC791';
+  static const String ticketingContractAddress = '0xef55A20788BEaD6CeaAf8eB8E8BB952aDFCD9892';
+  static const String avatarRegistryContractAddress = '0x20be36229C7a877A3aEef3C0441B9863b026854c';
   
   // ERC-4337 Account Abstraction Contracts
-  static const String goldfireTokenContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String adminRegistryContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String accountFactoryContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String paymasterContractAddress = '0x0000000000000000000000000000000000000000';
-  static const String entryPointAddress = '0x0000000000000000000000000000000000000000';
+  static const String goldfireTokenContractAddress = '0x7B0c889856eeDCE0351347AbaE4651Fb9FB40414';
+  static const String adminRegistryContractAddress = '0x3199f0FA37acbD424Bf8498ceD06b117b5d22d4e';
+  static const String accountFactoryContractAddress = '0x6190e76275794De324b15a04bb998Dd02cD8841B';
+  static const String paymasterContractAddress = '0x790450c2a8254f1a06689A327382033e8c0fD1ee';
+  static const String entryPointAddress = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
   
   // Bundler Configuration
   static const String bundlerRpcUrl = String.fromEnvironment(

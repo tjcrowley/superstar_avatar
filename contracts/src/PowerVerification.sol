@@ -16,33 +16,36 @@ contract PowerVerification is Initializable, OwnableUpgradeable, ReentrancyGuard
         _disableInitializers();
     }
 
+    // Power types enum
+    enum PowerType { Courage, Creativity, Connection, Insight, Kindness }
+
+    // Power level requirements (experience needed for each level)
+    uint256[] public levelRequirements;
+
     function initialize() public initializer {
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
+        
+        // Initialize level requirements
+        levelRequirements = [
+            0,    // Level 1
+            100,  // Level 2
+            250,  // Level 3
+            450,  // Level 4
+            700,  // Level 5
+            1000, // Level 6
+            1350, // Level 7
+            1750, // Level 8
+            2200, // Level 9
+            2700  // Level 10
+        ];
     }
 
     /**
      * @dev Authorize upgrade (only owner)
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-
-    // Power types enum
-    enum PowerType { Courage, Creativity, Connection, Insight, Kindness }
-
-    // Power level requirements (experience needed for each level)
-    uint256[] public levelRequirements = [
-        0,    // Level 1
-        100,  // Level 2
-        250,  // Level 3
-        450,  // Level 4
-        700,  // Level 5
-        1000, // Level 6
-        1350, // Level 7
-        1750, // Level 8
-        2200, // Level 9
-        2700  // Level 10
-    ];
 
     // Avatar power data structure
     struct AvatarPower {
