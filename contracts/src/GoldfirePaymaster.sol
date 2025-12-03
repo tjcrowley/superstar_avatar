@@ -48,6 +48,10 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     // Avatar Registry contract address (for validating avatar creation transactions)
     address public avatarRegistry;
     
+    // Flag to enable automatic sponsorship of ALL transactions for all users
+    // NOTE: This must be at the end to maintain upgrade safety
+    bool public sponsorAllTransactions;
+    
     // Events
     event Deposited(address indexed user, uint256 amount, uint256 timestamp);
     event Withdrawn(address indexed user, uint256 amount, uint256 timestamp);
@@ -57,6 +61,7 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     event WhitelistUpdated(address indexed user, bool isWhitelisted, uint256 timestamp);
     event ConversionRateUpdated(uint256 oldRate, uint256 newRate, uint256 timestamp);
     event AvatarCreationSponsorshipEnabled(bool enabled, uint256 timestamp);
+    event AllTransactionsSponsorshipEnabled(bool enabled, uint256 timestamp);
     event AvatarRegistryUpdated(address oldRegistry, address newRegistry, uint256 timestamp);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -160,6 +165,17 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     }
 
     /**
+     * @dev Enable/disable automatic sponsorship of ALL transactions for all users (admin only)
+     * @param enabled True to enable automatic sponsorship of all transactions
+     * @dev When enabled, all users are automatically whitelisted for gasless transactions
+     */
+    function setSponsorAllTransactions(bool enabled) external {
+        require(adminRegistry.isAdmin(msg.sender), "Not an admin");
+        sponsorAllTransactions = enabled;
+        emit AllTransactionsSponsorshipEnabled(enabled, block.timestamp);
+    }
+
+    /**
      * @dev Set Avatar Registry contract address (admin only)
      * @param _avatarRegistry Address of the Avatar Registry contract
      */
@@ -187,6 +203,21 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
     }
 
     /**
+     * @dev Automatically whitelist user for all gasless transactions (can be called by anyone)
+     * @dev This allows users to perform any transaction without MATIC
+     */
+    function whitelistForAllTransactions(address user) external {
+        require(user != address(0), "Invalid address");
+        require(sponsorAllTransactions, "All transactions sponsorship not enabled");
+        
+        // Only whitelist if user is not already whitelisted
+        if (!gaslessWhitelist[user]) {
+            gaslessWhitelist[user] = true;
+            emit WhitelistUpdated(user, true, block.timestamp);
+        }
+    }
+
+    /**
      * @dev Validate and pay for user operation (simplified ERC-4337 interface)
      * @param user Address of the user
      * @param gasCost Gas cost to pay
@@ -196,10 +227,20 @@ contract GoldfirePaymaster is Initializable, OwnableUpgradeable, ReentrancyGuard
         require(msg.sender == entryPoint, "Only EntryPoint can call");
         
         // Check if user is whitelisted for gasless transactions
-        // This includes users whitelisted for avatar creation
+        // This includes users whitelisted for avatar creation or all transactions
         if (gaslessWhitelist[user]) {
             // Gasless transaction - sponsored by admin
             require(address(this).balance >= gasCost, "Insufficient paymaster balance");
+            emit GasSponsored(user, gasCost, block.timestamp);
+            return true;
+        }
+        
+        // If all transactions sponsorship is enabled, automatically whitelist and sponsor
+        if (sponsorAllTransactions) {
+            // Auto-whitelist and sponsor (for all transactions)
+            gaslessWhitelist[user] = true;
+            require(address(this).balance >= gasCost, "Insufficient paymaster balance");
+            emit WhitelistUpdated(user, true, block.timestamp);
             emit GasSponsored(user, gasCost, block.timestamp);
             return true;
         }

@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:convert/convert.dart';
 import '../constants/app_constants.dart';
 import 'admin_service.dart';
+import 'transaction_service.dart';
 
 class BlockchainService {
   static final BlockchainService _instance = BlockchainService._internal();
@@ -17,6 +18,10 @@ class BlockchainService {
   late Credentials _credentials;
   String? _walletAddress;
   bool _isInitialized = false;
+
+  // Transaction service for paymaster integration - lazy-initialized to avoid circular dependency
+  TransactionService? _transactionService;
+  TransactionService get transactionService => _transactionService ??= TransactionService();
 
   // Contract instances
   late DeployedContract _powerVerificationContract;
@@ -662,16 +667,10 @@ class BlockchainService {
         metadata,
       ];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _powerVerificationContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -766,16 +765,10 @@ class BlockchainService {
         metadata,
       ];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -795,16 +788,10 @@ class BlockchainService {
       final function = _houseMembershipContract.function('joinHouse');
       final params = [houseId, avatarId, avatarName];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -823,16 +810,10 @@ class BlockchainService {
       final function = _houseMembershipContract.function('leaveHouse');
       final params = [houseId, avatarId];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -892,16 +873,10 @@ class BlockchainService {
         BigInt.from(experienceReward),
       ];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -922,16 +897,10 @@ class BlockchainService {
       final function = _houseMembershipContract.function('voteOnActivity');
       final params = [houseId, activityId, inFavor];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -951,16 +920,10 @@ class BlockchainService {
       final function = _houseMembershipContract.function('leaderApproveActivity');
       final params = [houseId, activityId];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -981,16 +944,10 @@ class BlockchainService {
       final function = _houseMembershipContract.function('completeActivity');
       final params = [houseId, activityId, avatarId];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _houseMembershipContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1153,16 +1110,10 @@ class BlockchainService {
         decentralizedStorageRef,
       ];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _activityScriptsContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1182,16 +1133,10 @@ class BlockchainService {
       final function = _activityScriptsContract.function('completeActivity');
       final params = [activityId, avatarId, proof];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _activityScriptsContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1217,16 +1162,10 @@ class BlockchainService {
         BigInt.from(adjustedExperience),
       ];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _activityScriptsContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1414,16 +1353,10 @@ class BlockchainService {
         BigInt.from(totalExperience),
       ];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _superstarAvatarRegistryContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1442,16 +1375,10 @@ class BlockchainService {
       final function = _superstarAvatarRegistryContract.function('unlockAchievement');
       final params = [avatarId, achievementId];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _superstarAvatarRegistryContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1470,16 +1397,10 @@ class BlockchainService {
       final function = _superstarAvatarRegistryContract.function('awardBadge');
       final params = [avatarId, badgeId];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _superstarAvatarRegistryContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1708,58 +1629,79 @@ class BlockchainService {
         // Continue with regular transaction if whitelisting fails
       }
 
-      // Check balance - but allow transaction to proceed even with low balance
-      // if user is whitelisted (will be sponsored by paymaster)
-      final balance = await getBalance();
-      final minRequired = BigInt.from(10000000000000000); // 0.01 MATIC minimum
-      
-      // Check if user is whitelisted
-      bool isWhitelisted = false;
+      // Check if paymaster sponsorship is enabled - if so, skip balance check
+      // The transaction service will handle paymaster sponsorship
+      final adminService = AdminService();
+      bool paymasterEnabled = false;
       try {
-        final adminService = AdminService();
-        final paymentInfo = await adminService.getUserPaymentInfo(_walletAddress!);
-        isWhitelisted = paymentInfo['hasWhitelist'] as bool? ?? false;
+        final allTransactionsEnabled = await adminService.isAllTransactionsSponsored();
+        final avatarCreationEnabled = await adminService.isAvatarCreationSponsored();
+        paymasterEnabled = allTransactionsEnabled || avatarCreationEnabled;
+        debugPrint('Paymaster enabled: allTransactions=$allTransactionsEnabled, avatarCreation=$avatarCreationEnabled');
       } catch (e) {
-        debugPrint('Could not check whitelist status: $e');
+        debugPrint('Could not check paymaster status: $e');
       }
 
-      // Only require balance if user is not whitelisted
-      if (!isWhitelisted && balance < minRequired) {
-        throw Exception(
-          'Insufficient funds. You need at least 0.01 MATIC for gas fees. '
-          'Please get testnet MATIC from the faucet.',
-        );
+      // Only check balance if paymaster is not enabled
+      // If paymaster is enabled, let the transaction service handle it
+      if (!paymasterEnabled) {
+        final balance = await getBalance();
+        final minRequired = BigInt.from(10000000000000000); // 0.01 MATIC minimum
+        
+        if (balance < minRequired) {
+          throw Exception(
+            'Insufficient funds. You need at least 0.01 MATIC for gas fees. '
+            'Please get testnet MATIC from the faucet.',
+          );
+        }
+      } else {
+        debugPrint('Paymaster enabled - skipping balance check, transaction will be sponsored');
       }
 
       final function = _avatarRegistryContract.function('createAvatar');
       final params = [avatarId, name, bio, imageUri, houseId, metadata];
 
-      final transaction = Transaction.callContract(
+      // Use TransactionService to route through paymaster (account abstraction)
+      final txHash = await transactionService.sendTransaction(
         contract: _avatarRegistryContract,
         function: function,
         parameters: params,
       );
 
-      // Note: If user is whitelisted and using account abstraction,
-      // the paymaster will sponsor this transaction
-      // For now, we use regular transactions - account abstraction integration
-      // would require a bundler setup
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
-      );
-
       return txHash;
     } catch (e) {
       debugPrint('Error creating avatar profile: $e');
+      debugPrint('Error type: ${e.runtimeType}');
+      debugPrint('Error string: ${e.toString()}');
+      
+      // Check if paymaster was enabled - if so, the error might be from account creation
+      // Account creation requires MATIC and is not sponsored by paymaster
+      bool paymasterWasEnabled = false;
+      try {
+        final allTransactionsEnabled = await adminService.isAllTransactionsSponsored();
+        final avatarCreationEnabled = await adminService.isAvatarCreationSponsored();
+        paymasterWasEnabled = allTransactionsEnabled || avatarCreationEnabled;
+        debugPrint('Paymaster was enabled when error occurred: $paymasterWasEnabled');
+      } catch (checkError) {
+        debugPrint('Could not check paymaster status in error handler: $checkError');
+      }
       
       // Check if it's an insufficient funds error
       if (_isInsufficientFundsError(e)) {
-        throw Exception(
-          'Insufficient funds. You need MATIC to pay for gas fees. '
-          'Please get testnet MATIC from the faucet.',
-        );
+        // If paymaster was enabled, the error is likely from account creation
+        // Account creation requires MATIC and cannot be sponsored by paymaster
+        if (paymasterWasEnabled) {
+          throw Exception(
+            'Account creation requires MATIC for gas fees (one-time setup). '
+            'Even though avatar creation is sponsored, the initial account creation needs MATIC. '
+            'Please get testnet MATIC from the faucet to create your account, then future transactions will be gasless.',
+          );
+        } else {
+          throw Exception(
+            'Insufficient funds. You need MATIC to pay for gas fees. '
+            'Please get testnet MATIC from the faucet.',
+          );
+        }
       }
       
       throw Exception('Failed to create avatar profile: $e');
@@ -1779,16 +1721,10 @@ class BlockchainService {
       final function = _avatarRegistryContract.function('updateAvatar');
       final params = [avatarId, name, bio, metadata];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _avatarRegistryContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;
@@ -1809,16 +1745,10 @@ class BlockchainService {
       final function = _avatarRegistryContract.function('updateAvatarImage');
       final params = [avatarId, newImageUri];
 
-      final transaction = Transaction.callContract(
+      final txHash = await transactionService.sendTransaction(
         contract: _avatarRegistryContract,
         function: function,
         parameters: params,
-      );
-
-      final txHash = await _client.sendTransaction(
-        _credentials,
-        transaction,
-        chainId: int.parse(AppConstants.polygonChainId),
       );
 
       return txHash;

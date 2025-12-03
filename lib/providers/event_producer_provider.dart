@@ -273,10 +273,7 @@ class EventProducerNotifier extends StateNotifier<EventProducer?> {
 
 // SharedPreferences provider (reuse from avatar_provider)
 final eventProducerProvider = StateNotifierProvider<EventProducerNotifier, EventProducer?>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider).value;
-  if (prefs == null) {
-    return EventProducerNotifier(SharedPreferences.getInstance() as SharedPreferences);
-  }
+  final prefs = ref.watch(sharedPreferencesProvider);
   return EventProducerNotifier(prefs);
 });
 

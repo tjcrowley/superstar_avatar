@@ -159,10 +159,7 @@ class ActivityAuthoringNotifier extends StateNotifier<List<ActivityScript>> {
 
 // Provider
 final activityAuthoringProvider = StateNotifierProvider<ActivityAuthoringNotifier, List<ActivityScript>>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider).value;
-  if (prefs == null) {
-    return ActivityAuthoringNotifier(SharedPreferences.getInstance() as SharedPreferences);
-  }
+  final prefs = ref.watch(sharedPreferencesProvider);
   return ActivityAuthoringNotifier(prefs);
 });
 

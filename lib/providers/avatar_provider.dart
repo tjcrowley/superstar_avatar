@@ -54,33 +54,33 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
   final BlockchainService _blockchainService = BlockchainService();
   final SharedPreferences _prefs;
 
-  AvatarNotifier(this._prefs) : super(AvatarsState(avatars: [])) {
-    _loadAvatars();
+  AvatarNotifier(this._prefs) : super(_loadInitialState(_prefs)) {
+    // State is initialized directly in super() to prevent rebuild loops
   }
 
-  Future<void> _loadAvatars() async {
+  static AvatarsState _loadInitialState(SharedPreferences prefs) {
     try {
       // Load avatars list
-      final avatarsJson = _prefs.getString('${AppConstants.avatarDataKey}_list');
+      final avatarsJson = prefs.getString('${AppConstants.avatarDataKey}_list');
       if (avatarsJson != null) {
         final avatarsData = jsonDecode(avatarsJson) as List;
         final loadedAvatars = avatarsData
             .map((data) => Avatar.fromJson(data as Map<String, dynamic>))
             .toList();
         
-        final selectedId = _prefs.getString('${AppConstants.avatarDataKey}_selected');
+        final selectedId = prefs.getString('${AppConstants.avatarDataKey}_selected');
         
-        state = AvatarsState(
+        return AvatarsState(
           avatars: loadedAvatars,
           selectedAvatarId: selectedId,
         );
       } else {
         // Try to load single avatar for backward compatibility
-        final avatarJson = _prefs.getString(AppConstants.avatarDataKey);
+        final avatarJson = prefs.getString(AppConstants.avatarDataKey);
         if (avatarJson != null) {
           final avatarData = jsonDecode(avatarJson);
           final avatar = Avatar.fromJson(avatarData);
-          state = AvatarsState(
+          return AvatarsState(
             avatars: [avatar],
             selectedAvatarId: avatar.id,
           );
@@ -89,6 +89,7 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
     } catch (e) {
       debugPrint('Error loading avatars: $e');
     }
+    return AvatarsState(avatars: []);
   }
 
   Future<void> _saveAvatars() async {
@@ -112,7 +113,13 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
     String? avatarImage,
   }) async {
     try {
+      // Debug: Check wallet connection status
+      debugPrint('AvatarNotifier: Checking wallet connection...');
+      debugPrint('AvatarNotifier: walletAddress = ${_blockchainService.walletAddress}');
+      debugPrint('AvatarNotifier: isWalletConnected = ${_blockchainService.isWalletConnected}');
+      
       if (!_blockchainService.isWalletConnected) {
+        debugPrint('AvatarNotifier: Wallet not connected, throwing error');
         throw Exception('Identity not connected');
       }
 
@@ -583,15 +590,30 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
   double getPowerProgress(PowerType type) => state.selectedAvatar?.getPowerProgress(type) ?? 0.0;
 }
 
-// SharedPreferences provider
-final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
-  return await SharedPreferences.getInstance();
+// Global variable to store SharedPreferences instance (set in main.dart)
+// This is accessed via a getter function exported from main.dart
+SharedPreferences? _cachedSharedPreferences;
+
+// Setter function to cache the SharedPreferences instance (called from main.dart)
+void setSharedPreferencesInstance(SharedPreferences prefs) {
+  _cachedSharedPreferences = prefs;
+}
+
+// SharedPreferences provider - using a regular Provider with cached instance
+final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
+  if (_cachedSharedPreferences == null) {
+    throw Exception(
+      'SharedPreferences not initialized. '
+      'Please ensure SharedPreferences.getInstance() is called in main() before the app starts.'
+    );
+  }
+  return _cachedSharedPreferences!;
 });
 
 // Avatar provider that depends on SharedPreferences
+// Use ref.read instead of ref.watch to prevent recreation loops
 final avatarProvider = StateNotifierProvider<AvatarNotifier, AvatarsState>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider).value;
-  if (prefs == null) return AvatarNotifier(SharedPreferences.getInstance() as SharedPreferences);
+  final prefs = ref.read(sharedPreferencesProvider);
   return AvatarNotifier(prefs);
 });
 

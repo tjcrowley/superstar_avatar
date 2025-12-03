@@ -9,57 +9,92 @@ import 'avatar_provider.dart';
 
 /// Provider for managing wallet connection state
 class WalletNotifier extends StateNotifier<bool> {
-  final BlockchainService _blockchainService = BlockchainService();
+  // Lazy-initialize services to avoid circular dependencies during provider creation
+  BlockchainService? _blockchainService;
+  BlockchainService get blockchainService => _blockchainService ??= BlockchainService();
+  
   final SecureStorageService _secureStorage = SecureStorageService();
   final FaucetService _faucetService = FaucetService();
   final SharedPreferences _prefs;
+  bool _isInitialized = false;
 
-  WalletNotifier(this._prefs) : super(false) {
-    _restoreWallet();
+  WalletNotifier(this._prefs) : super(_loadInitialState(_prefs)) {
+    // State is initialized directly in super() to prevent rebuild loops
+    // Mark as initialized after synchronous load
+    _isInitialized = true;
+    // Then do async restoration if needed (after constructor completes)
+    _restoreWalletAsync();
   }
 
-  /// Restore wallet from encrypted storage on app start
-  Future<void> _restoreWallet() async {
+  /// Load initial state synchronously from SharedPreferences
+  /// Avoid creating BlockchainService instances here to prevent circular dependencies
+  static bool _loadInitialState(SharedPreferences prefs) {
+    try {
+      // Simply check if wallet address is stored in SharedPreferences
+      // The actual wallet restoration will happen asynchronously in _restoreWallet
+      final walletAddress = prefs.getString(AppConstants.walletDataKey);
+      if (walletAddress != null && walletAddress.isNotEmpty) {
+        // If an address is stored, assume connected for initial UI rendering
+        // The actual connection will be verified asynchronously
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error loading initial wallet state: $e');
+      return false;
+    }
+  }
+
+  /// Restore wallet from encrypted storage on app start (async, called after constructor)
+  Future<void> _restoreWalletAsync() async {
+    if (state) return; // Already connected from sync load
+    
     try {
       // Check if mnemonic is stored
       final storedMnemonic = await _secureStorage.getMnemonic(_prefs);
       
       if (storedMnemonic != null && storedMnemonic.isNotEmpty) {
         // Restore wallet from stored mnemonic
-        await _blockchainService.importWallet(storedMnemonic);
-        final walletAddress = _blockchainService.walletAddress;
+        await blockchainService.importWallet(storedMnemonic);
+        final walletAddress = blockchainService.walletAddress;
         
         if (walletAddress != null) {
           // Store wallet address for reference
           await _prefs.setString(AppConstants.walletDataKey, walletAddress);
-          state = true;
-          debugPrint('Wallet restored from secure storage');
-        } else {
+          if (!state) { // Only update if not already true from sync load
+            state = true;
+            debugPrint('Wallet restored from secure storage');
+          }
+        } else if (!state) {
           state = false;
         }
-      } else {
-        // No stored wallet, check if blockchain service has wallet (for current session)
-        final isConnected = _blockchainService.isWalletConnected;
+      } else if (!state) {
+        // No stored mnemonic, check if blockchain service has wallet (for current session)
+        final isConnected = blockchainService.isWalletConnected;
         state = isConnected;
-        
         if (isConnected) {
-          final address = _blockchainService.walletAddress;
+          final address = blockchainService.walletAddress;
           if (address != null) {
             await _prefs.setString(AppConstants.walletDataKey, address);
           }
         }
       }
     } catch (e) {
-      debugPrint('Error restoring wallet: $e');
-      state = false;
+      debugPrint('Error restoring wallet asynchronously: $e');
+      if (!state) {
+        state = false;
+      }
     }
   }
 
   Future<void> connectWallet(String? mnemonic) async {
     try {
+      debugPrint('WalletNotifier.connectWallet: mnemonic provided = ${mnemonic != null && mnemonic.isNotEmpty}');
+      
       // If mnemonic provided, import wallet and store it securely
       if (mnemonic != null && mnemonic.isNotEmpty) {
-        await _blockchainService.importWallet(mnemonic);
+        debugPrint('WalletNotifier.connectWallet: Importing wallet with mnemonic');
+        await blockchainService.importWallet(mnemonic);
         // Store mnemonic encrypted for future restoration
         await _secureStorage.storeMnemonic(mnemonic, _prefs);
       }
@@ -67,14 +102,24 @@ class WalletNotifier extends StateNotifier<bool> {
       // If wallet was just created, we need to get the mnemonic from blockchain service
       // For now, we'll store it when user confirms they've saved it
       
-      final walletAddress = _blockchainService.walletAddress;
+      // Force a small delay to ensure wallet is fully set in singleton if it was just created
+      if (mnemonic == null || mnemonic.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
+      final walletAddress = blockchainService.walletAddress;
+      debugPrint('WalletNotifier.connectWallet: walletAddress = $walletAddress');
+      debugPrint('WalletNotifier.connectWallet: isWalletConnected = ${blockchainService.isWalletConnected}');
+      
       if (walletAddress != null) {
         // Store wallet address for reference
         await _prefs.setString(AppConstants.walletDataKey, walletAddress);
         // Update state to trigger AppRouter rebuild
         state = true;
+        debugPrint('WalletNotifier.connectWallet: Wallet connected, state set to true');
       } else {
         state = false;
+        debugPrint('WalletNotifier.connectWallet: No wallet address, state set to false');
       }
     } catch (e) {
       debugPrint('Error connecting wallet: $e');
@@ -106,16 +151,14 @@ class WalletNotifier extends StateNotifier<bool> {
     }
   }
 
-  String? get walletAddress => _blockchainService.walletAddress;
+  String? get walletAddress => blockchainService.walletAddress;
   bool get isConnected => state;
 }
 
 // Provider
+// Use ref.read instead of ref.watch to prevent recreation loops
 final walletProvider = StateNotifierProvider<WalletNotifier, bool>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider).value;
-  if (prefs == null) {
-    return WalletNotifier(SharedPreferences.getInstance() as SharedPreferences);
-  }
+  final prefs = ref.read(sharedPreferencesProvider);
   return WalletNotifier(prefs);
 });
 

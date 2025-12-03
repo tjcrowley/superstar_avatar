@@ -14,9 +14,11 @@ import 'screens/home_screen.dart';
 import 'screens/wallet_setup_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
-import 'providers/avatar_provider.dart';
-import 'providers/wallet_provider.dart';
+import 'providers/avatar_provider.dart' show setSharedPreferencesInstance, hasAvatarProvider, avatarProvider, AvatarsState;
+import 'providers/wallet_provider.dart' show walletProvider, isWalletConnectedProvider;
 import 'services/blockchain_service.dart';
+
+// Note: SharedPreferences instance is now cached in avatar_provider.dart
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,9 +37,11 @@ void main() async {
     return true;
   };
   
-  // Initialize services with error handling
+  // Initialize SharedPreferences and cache the instance
   try {
-    await SharedPreferences.getInstance();
+    final prefsInstance = await SharedPreferences.getInstance();
+    // Set the cached instance in the provider file
+    setSharedPreferencesInstance(prefsInstance);
     debugPrint('✓ SharedPreferences initialized');
   } catch (e, stack) {
     debugPrint('✗ Failed to initialize SharedPreferences: $e');
@@ -216,14 +220,45 @@ class SuperstarAvatarApp extends ConsumerWidget {
   }
 }
 
-class AppRouter extends ConsumerWidget {
+class AppRouter extends ConsumerStatefulWidget {
   const AppRouter({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends ConsumerState<AppRouter> {
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Mark as initialized after first frame to allow ref.watch to work
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     try {
-      final hasAvatar = ref.watch(hasAvatarProvider);
-      final isWalletConnected = ref.watch(isWalletConnectedProvider);
+      // Show loading screen until after first frame to prevent reading providers during initial build
+      if (!_isInitialized) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      // Now safe to use ref.watch - providers are already initialized
+      // Use select to only watch the specific values we need to minimize rebuilds
+      final isWalletConnected = ref.watch(walletProvider);
+      final hasAvatar = ref.watch(
+        avatarProvider.select((state) => state.hasAvatar),
+      );
 
       // Check if wallet is connected
       if (!isWalletConnected) {

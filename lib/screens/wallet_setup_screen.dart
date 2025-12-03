@@ -45,9 +45,12 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
     });
 
     try {
+      // Use the singleton BlockchainService instance
       final blockchainService = BlockchainService();
       final mnemonic = await blockchainService.createWallet();
       final walletAddress = blockchainService.walletAddress;
+
+      debugPrint('WalletSetupScreen._createWallet: Created wallet with address: $walletAddress');
 
       if (walletAddress == null) {
         throw Exception('Failed to get wallet address after creation');
@@ -80,6 +83,13 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
         // Continue with wallet creation even if SCA creation fails
       }
 
+      // Connect wallet via provider immediately after creation
+      // This ensures the wallet state is updated and AppRouter knows the wallet is connected
+      // Pass null because wallet is already created in the singleton
+      debugPrint('WalletSetupScreen._createWallet: Calling connectWallet(null) to update provider state');
+      await ref.read(walletProvider.notifier).connectWallet(null);
+      debugPrint('WalletSetupScreen._createWallet: connectWallet completed');
+      
       // Store wallet info temporarily
       setState(() {
         _generatedMnemonic = mnemonic;
@@ -212,12 +222,13 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
 
     try {
       final mnemonic = _mnemonicController.text.trim();
-      final blockchainService = BlockchainService();
-      await blockchainService.importWallet(mnemonic);
-      final walletAddress = blockchainService.walletAddress;
-
-      // Connect wallet via provider to trigger AppRouter rebuild
+      
+      // Connect wallet via provider first - this will import the wallet into the singleton
       await ref.read(walletProvider.notifier).connectWallet(mnemonic);
+      
+      // Get wallet address from the singleton after import
+      final blockchainService = BlockchainService();
+      final walletAddress = blockchainService.walletAddress;
 
       setState(() {
         _walletAddress = walletAddress;
@@ -283,11 +294,11 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch wallet provider to detect when wallet is connected
-    final isWalletConnected = ref.watch(isWalletConnectedProvider);
-    
-    // If wallet is connected, show loading while AppRouter navigates
-    if (isWalletConnected && _walletAddress != null) {
+    // Don't watch isWalletConnectedProvider here to avoid rebuild loop with AppRouter
+    // AppRouter is already watching this provider and will handle navigation automatically
+    // We only check the local _walletAddress state to show loading
+    if (_walletAddress != null) {
+      // Wallet was just created/imported, show loading while AppRouter navigates
       return Scaffold(
         body: SafeArea(
           child: Center(
@@ -354,7 +365,7 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                 const SizedBox(height: AppConstants.spacingXL),
 
                 // Wallet Address Display (only show if wallet is connected but not yet navigated)
-                if (_walletAddress != null && !_showMnemonic && !isWalletConnected) ...[
+                if (_walletAddress != null && !_showMnemonic) ...[
                   Container(
                     padding: const EdgeInsets.all(AppConstants.spacingM),
                     decoration: BoxDecoration(

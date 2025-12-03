@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_constants.dart';
 import '../providers/avatar_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../widgets/gradient_button.dart';
 import '../models/power.dart';
 import '../services/faucet_service.dart';
+import 'wallet_setup_screen.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -31,6 +33,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _createAvatar() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Check if wallet is connected
+    final isWalletConnected = ref.read(walletProvider);
+    if (!isWalletConnected) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please connect your wallet before creating an avatar'),
+            backgroundColor: AppConstants.errorColor,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() {
       _isCreatingAvatar = true;
@@ -277,6 +293,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _buildProfileStep() {
+    final isWalletConnected = ref.watch(walletProvider);
+    final walletAddress = ref.watch(walletAddressProvider);
+    
     return Form(
       key: _formKey,
       child: Column(
@@ -291,6 +310,140 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             AppConstants.onboardingDescriptions[2],
             style: Theme.of(context).textTheme.bodyMedium,
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppConstants.spacingL),
+          
+          // Wallet Connection Status
+          Card(
+            color: AppConstants.surfaceColor,
+            child: Padding(
+              padding: const EdgeInsets.all(AppConstants.spacingM),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isWalletConnected ? Icons.check_circle : Icons.error_outline,
+                        color: isWalletConnected 
+                            ? AppConstants.successColor 
+                            : AppConstants.errorColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: AppConstants.spacingS),
+                      Text(
+                        'Wallet Status',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppConstants.spacingS),
+                  Text(
+                    isWalletConnected 
+                        ? 'Connected' 
+                        : 'Not Connected',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isWalletConnected 
+                          ? AppConstants.successColor 
+                          : AppConstants.errorColor,
+                    ),
+                  ),
+                  if (isWalletConnected && walletAddress != null) ...[
+                    const SizedBox(height: AppConstants.spacingXS),
+                    Text(
+                      '${walletAddress!.substring(0, 6)}...${walletAddress!.substring(walletAddress!.length - 4)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppConstants.textSecondaryColor,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppConstants.spacingM),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            // Navigate to wallet setup screen to reconnect
+                            if (mounted) {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const WalletSetupScreen(),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Reconnect'),
+                        ),
+                      ),
+                      const SizedBox(width: AppConstants.spacingS),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: isWalletConnected ? () async {
+                            // Show confirmation dialog
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Disconnect Wallet'),
+                                content: const Text(
+                                  'Are you sure you want to disconnect your wallet? '
+                                  'You will need to reconnect to create an avatar.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppConstants.errorColor,
+                                    ),
+                                    child: const Text('Disconnect'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            
+                            if (confirmed == true && mounted) {
+                              try {
+                                await ref.read(walletProvider.notifier).disconnectWallet();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Wallet disconnected'),
+                                      backgroundColor: AppConstants.successColor,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error disconnecting wallet: $e'),
+                                      backgroundColor: AppConstants.errorColor,
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          } : null,
+                          icon: const Icon(Icons.link_off, size: 18),
+                          label: const Text('Disconnect'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppConstants.errorColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: AppConstants.spacingL),
           
