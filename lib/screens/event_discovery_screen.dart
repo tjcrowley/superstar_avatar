@@ -24,6 +24,7 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
   Set<Marker> _markers = {};
   bool _isMapView = true;
   double _searchRadius = 50.0; // km
+  bool _hasLocationPermission = false;
 
   @override
   void initState() {
@@ -42,6 +43,9 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
               content: Text('Location services are disabled. Please enable them.'),
             ),
           );
+          setState(() {
+            _hasLocationPermission = false;
+          });
         }
         return;
       }
@@ -57,6 +61,11 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
               ),
             );
           }
+          if (mounted) {
+            setState(() {
+              _hasLocationPermission = false;
+            });
+          }
           return;
         }
       }
@@ -68,8 +77,17 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
               content: Text('Location permissions are permanently denied.'),
             ),
           );
+          setState(() {
+            _hasLocationPermission = false;
+          });
         }
         return;
+      }
+
+      if (mounted && !_hasLocationPermission) {
+        setState(() {
+          _hasLocationPermission = true;
+        });
       }
 
       // Get current position
@@ -93,6 +111,11 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
       _updateMarkers();
     } catch (e) {
       debugPrint('Error getting location: $e');
+      if (mounted) {
+        setState(() {
+          _hasLocationPermission = false;
+        });
+      }
     }
   }
 
@@ -237,8 +260,8 @@ class _EventDiscoveryScreenState extends ConsumerState<EventDiscoveryScreen> {
             zoom: 12.0,
           ),
           markers: _markers,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: true,
+          myLocationEnabled: _hasLocationPermission,
+          myLocationButtonEnabled: _hasLocationPermission,
           mapType: MapType.normal,
           onMapCreated: (controller) {
             _mapController = controller;
