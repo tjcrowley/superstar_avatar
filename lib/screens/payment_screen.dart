@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide Card;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import '../constants/app_constants.dart';
@@ -44,6 +45,32 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   void dispose() {
     _amountController.dispose();
     super.dispose();
+  }
+
+  Future<void> _copyToClipboard(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Wallet address copied to clipboard'),
+            backgroundColor: AppConstants.successColor,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error copying to clipboard: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to copy: $e'),
+            backgroundColor: AppConstants.errorColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   void _calculateUSD() {
@@ -150,7 +177,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Wallet Address Display
+              // Wallet Address Display with Copy Button
               Material(
                 child: Container(
                   decoration: BoxDecoration(
@@ -164,23 +191,39 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       ),
                     ],
                   ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Wallet Address',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.walletAddress,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontFamily: 'monospace',
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Wallet Address',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 20),
+                              onPressed: () => _copyToClipboard(widget.walletAddress),
+                              tooltip: 'Copy wallet address',
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size(32, 32),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          widget.walletAddress,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

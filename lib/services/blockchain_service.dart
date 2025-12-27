@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:web3dart/web3dart.dart';
 import 'package:http/http.dart' as http;
@@ -525,10 +526,20 @@ class BlockchainService {
 
     try {
       // Initialize Web3 client with timeout
-      _client = Web3Client(
-        AppConstants.polygonRpcUrl,
-        http.Client(),
-      );
+      // Wrap in try-catch to handle network errors gracefully on Android
+      try {
+        _client = Web3Client(
+          AppConstants.polygonRpcUrl,
+          http.Client(),
+        );
+      } catch (e) {
+        debugPrint('BlockchainService: Error creating Web3Client: $e');
+        // Create a client anyway - it will fail on first use but won't crash the app
+        _client = Web3Client(
+          AppConstants.polygonRpcUrl,
+          http.Client(),
+        );
+      }
 
       // Initialize contract instances only if addresses are valid (not placeholder)
       final zeroAddress = '0x0000000000000000000000000000000000000000';
@@ -619,6 +630,41 @@ class BlockchainService {
     }
   }
 
+  /// Import wallet from private key (hex string with or without 0x prefix)
+  Future<void> importWalletFromPrivateKey(String privateKeyHex) async {
+    try {
+      // Remove 0x prefix if present
+      String cleanKey = privateKeyHex.trim();
+      if (cleanKey.startsWith('0x') || cleanKey.startsWith('0X')) {
+        cleanKey = cleanKey.substring(2);
+      }
+      
+      // Validate hex string
+      if (!RegExp(r'^[0-9a-fA-F]+$').hasMatch(cleanKey)) {
+        throw Exception('Invalid private key format. Must be a hex string.');
+      }
+      
+      // Private key should be 64 hex characters (32 bytes)
+      if (cleanKey.length != 64) {
+        throw Exception('Invalid private key length. Must be 64 hex characters (32 bytes).');
+      }
+      
+      // Convert hex string to bytes
+      final privateKeyBytesList = hex.decode(cleanKey);
+      // Convert List<int> to Uint8List
+      final privateKeyBytes = Uint8List.fromList(privateKeyBytesList);
+      
+      // Create credentials from private key
+      _credentials = EthPrivateKey(privateKeyBytes);
+      _walletAddress = _credentials.address.hex;
+      
+      debugPrint('Wallet imported from private key. Address: $_walletAddress');
+    } catch (e) {
+      debugPrint('Error importing wallet from private key: $e');
+      throw Exception('Failed to import wallet from private key: $e');
+    }
+  }
+
   String? get walletAddress => _walletAddress;
 
   bool get isWalletConnected => _walletAddress != null;
@@ -642,9 +688,42 @@ class BlockchainService {
     
     try {
       final address = EthereumAddress.fromHex(_walletAddress!);
+      debugPrint('Getting balance for address: $address');
+      debugPrint('RPC URL: ${AppConstants.polygonRpcUrl}');
+      debugPrint('Chain ID: ${AppConstants.polygonChainId}');
+      debugPrint('Network: Polygon Amoy Testnet');
+      
+      // Verify network by getting chain ID from RPC
+      try {
+        final chainId = await _client.getChainId();
+        debugPrint('Actual chain ID from RPC: $chainId');
+        debugPrint('Expected chain ID: ${AppConstants.polygonChainId}');
+        if (chainId.toString() != AppConstants.polygonChainId) {
+          debugPrint('⚠️ WARNING: Chain ID mismatch! Expected ${AppConstants.polygonChainId}, got $chainId');
+          debugPrint('⚠️ Your wallet may have funds on a different network');
+        }
+      } catch (e) {
+        debugPrint('Could not verify chain ID: $e');
+      }
+      
       final balance = await _client.getBalance(address);
-      return balance.getInWei;
-    } catch (e) {
+      final balanceInWei = balance.getInWei;
+      final balanceInMatic = balanceInWei / BigInt.from(1000000000000000000);
+      final remainder = balanceInWei % BigInt.from(1000000000000000000);
+      final remainderStr = remainder.toString().padLeft(18, '0');
+      final remainderDisplay = remainderStr.length > 4 ? remainderStr.substring(0, 4) : remainderStr;
+      debugPrint('Balance retrieved: ${balanceInMatic}.$remainderDisplay MATIC (${balanceInWei} wei)');
+      
+      if (balanceInWei == BigInt.zero) {
+        debugPrint('⚠️ WARNING: Balance is 0 MATIC');
+        debugPrint('⚠️ Make sure your wallet has funds on Polygon Amoy testnet (chain ID 80002)');
+        debugPrint('⚠️ If your funds are on Polygon mainnet (chain ID 137), they won\'t be visible here');
+      }
+      
+      return balanceInWei;
+    } catch (e, stack) {
+      debugPrint('Error getting balance: $e');
+      debugPrint('Stack: $stack');
       throw Exception('Failed to get balance: $e');
     }
   }
@@ -1640,19 +1719,48 @@ class BlockchainService {
         debugPrint('Paymaster enabled: allTransactions=$allTransactionsEnabled, avatarCreation=$avatarCreationEnabled');
       } catch (e) {
         debugPrint('Could not check paymaster status: $e');
+        debugPrint('Paymaster check failed, will proceed with regular transaction if balance is sufficient');
+        // If paymaster check fails, we'll still check balance and proceed with regular transaction
       }
 
       // Only check balance if paymaster is not enabled
       // If paymaster is enabled, let the transaction service handle it
+      // If paymaster check failed, we'll still check balance and proceed
       if (!paymasterEnabled) {
-        final balance = await getBalance();
-        final minRequired = BigInt.from(10000000000000000); // 0.01 MATIC minimum
-        
-        if (balance < minRequired) {
-          throw Exception(
-            'Insufficient funds. You need at least 0.01 MATIC for gas fees. '
-            'Please get testnet MATIC from the faucet.',
-          );
+        debugPrint('Paymaster not enabled, checking wallet balance...');
+        debugPrint('Wallet address being checked: ${_walletAddress}');
+        try {
+          final balance = await getBalance();
+          final minRequired = BigInt.from(10000000000000000); // 0.01 MATIC minimum
+          
+          // Convert balance to MATIC for logging
+          final balanceInMatic = balance / BigInt.from(1000000000000000000);
+          final remainder = balance % BigInt.from(1000000000000000000);
+          final remainderStr = remainder.toString().padLeft(18, '0');
+          final remainderDisplay = remainderStr.length > 4 ? remainderStr.substring(0, 4) : remainderStr;
+          debugPrint('Wallet balance: ${balanceInMatic}.$remainderDisplay MATIC (${balance} wei)');
+          debugPrint('Minimum required: 0.01 MATIC (${minRequired} wei)');
+          
+          if (balance < minRequired) {
+            debugPrint('Balance check failed: ${balance} < ${minRequired}');
+            throw Exception(
+              'Insufficient funds. You need at least 0.01 MATIC for gas fees. '
+              'Please get testnet MATIC from the faucet.',
+            );
+          }
+          debugPrint('Balance check passed: ${balance} >= ${minRequired}');
+        } catch (e) {
+          debugPrint('Error during balance check: $e');
+          // If balance check fails due to RPC error, log it but don't block the transaction
+          // The transaction itself will fail if there truly isn't enough funds
+          final errorStr = e.toString().toLowerCase();
+          if (errorStr.contains('rpc') || errorStr.contains('network') || errorStr.contains('connection')) {
+            debugPrint('Balance check failed due to network/RPC error - proceeding with transaction anyway');
+            debugPrint('Transaction will fail at execution time if funds are insufficient');
+          } else {
+            // Re-throw balance errors (like insufficient funds)
+            rethrow;
+          }
         }
       } else {
         debugPrint('Paymaster enabled - skipping balance check, transaction will be sponsored');
@@ -1678,6 +1786,7 @@ class BlockchainService {
       // Account creation requires MATIC and is not sponsored by paymaster
       bool paymasterWasEnabled = false;
       try {
+        final adminService = AdminService();
         final allTransactionsEnabled = await adminService.isAllTransactionsSponsored();
         final avatarCreationEnabled = await adminService.isAvatarCreationSponsored();
         paymasterWasEnabled = allTransactionsEnabled || avatarCreationEnabled;

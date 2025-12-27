@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_constants.dart';
@@ -23,6 +24,7 @@ class WalletSetupScreen extends ConsumerStatefulWidget {
 class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _mnemonicController = TextEditingController();
+  final _privateKeyController = TextEditingController();
   bool _isCreatingWallet = false;
   bool _isImportingWallet = false;
   bool _showMnemonic = false;
@@ -30,13 +32,28 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
   String? _walletAddress;
   bool _isRequestingFunding = false;
   bool _hasCompletedPayment = false;
+  bool _importMode = false; // false = mnemonic, true = private key
   final FaucetService _faucetService = FaucetService();
   final PaymentService _paymentService = PaymentService();
 
   @override
   void dispose() {
     _mnemonicController.dispose();
+    _privateKeyController.dispose();
     super.dispose();
+  }
+
+  Future<void> _copyToClipboard(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wallet address copied to clipboard'),
+          backgroundColor: AppConstants.successColor,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _createWallet() async {
@@ -221,10 +238,15 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
     });
 
     try {
-      final mnemonic = _mnemonicController.text.trim();
-      
-      // Connect wallet via provider first - this will import the wallet into the singleton
-      await ref.read(walletProvider.notifier).connectWallet(mnemonic);
+      if (_importMode) {
+        // Import via private key
+        final privateKey = _privateKeyController.text.trim();
+        await ref.read(walletProvider.notifier).connectWalletWithPrivateKey(privateKey);
+      } else {
+        // Import via mnemonic
+        final mnemonic = _mnemonicController.text.trim();
+        await ref.read(walletProvider.notifier).connectWallet(mnemonic);
+      }
       
       // Get wallet address from the singleton after import
       final blockchainService = BlockchainService();
@@ -380,11 +402,32 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                         const SizedBox(height: AppConstants.spacingS),
-                        Text(
-                          '${_walletAddress!.substring(0, 6)}...${_walletAddress!.substring(_walletAddress!.length - 4)}',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontFamily: 'monospace',
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _walletAddress!,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontFamily: 'monospace',
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: AppConstants.spacingS),
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 20),
+                              onPressed: () => _copyToClipboard(_walletAddress!),
+                              tooltip: 'Copy wallet address',
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size(32, 32),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -507,24 +550,145 @@ class _WalletSetupScreenState extends ConsumerState<WalletSetupScreen> {
                   
                   const SizedBox(height: AppConstants.spacingL),
                   
-                  // Mnemonic Input
-                  SecureTextField(
-                    controller: _mnemonicController,
-                    labelText: 'Recovery Phrase',
-                    hintText: 'Enter your 12 or 24 word recovery phrase',
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your recovery phrase';
-                      }
-                      final words = value.trim().split(' ');
-                      if (words.length != 12 && words.length != 24) {
-                        return 'Recovery phrase must be 12 or 24 words';
-                      }
-                      return null;
-                    },
+                  // Import Mode Toggle
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppConstants.surfaceColor,
+                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusM),
+                      border: Border.all(color: AppConstants.textSecondaryColor.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _importMode = false;
+                                _mnemonicController.clear();
+                                _privateKeyController.clear();
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingS),
+                              decoration: BoxDecoration(
+                                color: !_importMode ? AppConstants.primaryColor : Colors.transparent,
+                                borderRadius: BorderRadius.circular(AppConstants.borderRadiusM),
+                              ),
+                              child: Text(
+                                'Recovery Phrase',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: !_importMode ? Colors.white : AppConstants.textSecondaryColor,
+                                  fontWeight: !_importMode ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _importMode = true;
+                                _mnemonicController.clear();
+                                _privateKeyController.clear();
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingS),
+                              decoration: BoxDecoration(
+                                color: _importMode ? AppConstants.primaryColor : Colors.transparent,
+                                borderRadius: BorderRadius.circular(AppConstants.borderRadiusM),
+                              ),
+                              child: Text(
+                                'Private Key',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: _importMode ? Colors.white : AppConstants.textSecondaryColor,
+                                  fontWeight: _importMode ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   
+                  const SizedBox(height: AppConstants.spacingL),
+                  
+                  // Mnemonic or Private Key Input
+                  if (!_importMode)
+                    SecureTextField(
+                      controller: _mnemonicController,
+                      labelText: 'Recovery Phrase',
+                      hintText: 'Enter your 12 or 24 word recovery phrase',
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter your recovery phrase';
+                        }
+                        final words = value.trim().split(' ');
+                        if (words.length != 12 && words.length != 24) {
+                          return 'Recovery phrase must be 12 or 24 words';
+                        }
+                        return null;
+                      },
+                    )
+                  else
+                    SecureTextField(
+                      controller: _privateKeyController,
+                      labelText: 'Private Key',
+                      hintText: 'Enter your private key (0x...)',
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter your private key';
+                        }
+                        String cleanKey = value.trim();
+                        if (cleanKey.startsWith('0x') || cleanKey.startsWith('0X')) {
+                          cleanKey = cleanKey.substring(2);
+                        }
+                        if (!RegExp(r'^[0-9a-fA-F]+$').hasMatch(cleanKey)) {
+                          return 'Invalid private key format. Must be a hex string.';
+                        }
+                        if (cleanKey.length != 64) {
+                          return 'Invalid private key length. Must be 64 hex characters.';
+                        }
+                        return null;
+                      },
+                    ),
+                  
                   const SizedBox(height: AppConstants.spacingM),
+                  
+                  // Security Warning for Private Key
+                  if (_importMode)
+                    Container(
+                      padding: const EdgeInsets.all(AppConstants.spacingS),
+                      decoration: BoxDecoration(
+                        color: AppConstants.errorColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusM),
+                        border: Border.all(color: AppConstants.errorColor.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning,
+                            color: AppConstants.errorColor,
+                            size: 16,
+                          ),
+                          const SizedBox(width: AppConstants.spacingS),
+                          Expanded(
+                            child: Text(
+                              'Private keys are sensitive. Never share them with anyone.',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppConstants.errorColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                  if (_importMode) const SizedBox(height: AppConstants.spacingM),
                   
                   GradientButton(
                     onPressed: _isImportingWallet ? null : _importWallet,

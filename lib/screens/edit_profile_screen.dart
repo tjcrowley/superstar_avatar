@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -19,7 +19,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
   final ImagePicker _imagePicker = ImagePicker();
-  File? _selectedImage;
+  Uint8List? _selectedImageBytes; // Image bytes for cross-platform display
   String? _imageUri; // IPFS hash or image URI
   bool _isSaving = false;
   bool _isUploadingImage = false;
@@ -64,8 +64,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
 
       if (image != null) {
+        // Read image as bytes (works on both web and mobile)
+        final Uint8List imageBytes = await image.readAsBytes();
+        
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImageBytes = imageBytes;
         });
 
         // TODO: Upload image to IPFS or decentralized storage
@@ -249,9 +252,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         boxShadow: AppConstants.shadowMedium,
                       ),
                       child: ClipOval(
-                        child: _selectedImage != null
-                            ? Image.file(
-                                _selectedImage!,
+                        child: _selectedImageBytes != null
+                            ? Image.memory(
+                                _selectedImageBytes!,
                                 fit: BoxFit.cover,
                               )
                             : (_imageUri != null && _imageUri!.startsWith('http'))

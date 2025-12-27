@@ -229,6 +229,7 @@ class AppRouter extends ConsumerStatefulWidget {
 
 class _AppRouterState extends ConsumerState<AppRouter> {
   bool _isInitialized = false;
+  bool _hasSyncedAvatars = false;
 
   @override
   void initState() {
@@ -243,6 +244,7 @@ class _AppRouterState extends ConsumerState<AppRouter> {
     });
   }
 
+
   @override
   Widget build(BuildContext context) {
     try {
@@ -256,22 +258,48 @@ class _AppRouterState extends ConsumerState<AppRouter> {
       // Now safe to use ref.watch - providers are already initialized
       // Use select to only watch the specific values we need to minimize rebuilds
       final isWalletConnected = ref.watch(walletProvider);
-      final hasAvatar = ref.watch(
-        avatarProvider.select((state) => state.hasAvatar),
-      );
+      final avatarState = ref.watch(avatarProvider);
+      final hasAvatar = avatarState.hasAvatar;
+
+      debugPrint('AppRouter: isWalletConnected = $isWalletConnected');
+      debugPrint('AppRouter: hasAvatar = $hasAvatar');
+      debugPrint('AppRouter: avatar count = ${avatarState.avatars.length}');
+      if (avatarState.avatars.isNotEmpty) {
+        debugPrint('AppRouter: Primary avatar exists = ${avatarState.hasPrimaryAvatar}');
+        debugPrint('AppRouter: Selected avatar = ${avatarState.selectedAvatar?.id}');
+      }
+
+      // Sync avatars from blockchain if wallet is connected but no local avatars
+      // Do this asynchronously to avoid blocking the build
+      if (isWalletConnected && !hasAvatar && !_hasSyncedAvatars) {
+        _hasSyncedAvatars = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          try {
+            debugPrint('AppRouter: Wallet connected but no local avatars, syncing from blockchain...');
+            await ref.read(avatarProvider.notifier).loadAvatarsFromBlockchain();
+            debugPrint('AppRouter: Avatar sync completed');
+          } catch (e) {
+            debugPrint('AppRouter: Error syncing avatars: $e');
+            _hasSyncedAvatars = false; // Allow retry on error
+          }
+        });
+      }
 
       // Check if wallet is connected
       if (!isWalletConnected) {
+        debugPrint('AppRouter: Routing to WalletSetupScreen');
         return const WalletSetupScreen();
       }
 
       // Check if avatar exists
       if (!hasAvatar) {
+        debugPrint('AppRouter: No avatar found, routing to OnboardingScreen');
         return const OnboardingScreen();
       }
 
       // Check if user is admin and show admin dashboard if accessing admin route
       // Main app
+      debugPrint('AppRouter: Avatar exists, routing to HomeScreen');
       return const HomeScreen();
     } catch (e, stack) {
       debugPrint('Error in AppRouter: $e');

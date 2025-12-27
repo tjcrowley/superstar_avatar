@@ -20,6 +20,35 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
+  bool _isAdmin = false;
+  bool _isCheckingAdmin = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+  
+  Future<void> _checkAdminStatus() async {
+    try {
+      final adminService = AdminService();
+      final isAdmin = await adminService.isAdmin();
+      if (mounted) {
+        setState(() {
+          _isAdmin = isAdmin;
+          _isCheckingAdmin = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking admin status: $e');
+      if (mounted) {
+        setState(() {
+          _isAdmin = false;
+          _isCheckingAdmin = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +474,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
             
             const Spacer(),
+            
+            // Admin Dashboard Button (only show if user is admin)
+            if (!_isCheckingAdmin && _isAdmin) ...[
+              GradientButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminDashboardScreen(),
+                    ),
+                  );
+                },
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.admin_panel_settings, color: Colors.white),
+                    SizedBox(width: AppConstants.spacingS),
+                    Text('Admin Dashboard'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+            ],
             
             // Logout Button
             OutlinedButton(

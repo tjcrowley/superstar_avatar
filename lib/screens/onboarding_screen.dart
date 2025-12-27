@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_constants.dart';
@@ -25,6 +26,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _isCreatingAvatar = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Check if avatar already exists when screen is shown
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final hasAvatar = ref.read(avatarProvider).hasAvatar;
+        if (hasAvatar) {
+          debugPrint('OnboardingScreen: Avatar already exists, this screen should not be shown');
+          // The router should handle this, but as a safeguard, navigate away
+          // This should not happen if routing is working correctly
+        }
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
@@ -33,6 +50,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _createAvatar() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Check if avatar already exists (safeguard)
+    final avatarState = ref.read(avatarProvider);
+    if (avatarState.hasAvatar) {
+      debugPrint('OnboardingScreen: Avatar already exists, preventing duplicate creation');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Avatar already exists. Redirecting to dashboard...'),
+            backgroundColor: AppConstants.successColor,
+          ),
+        );
+        // The router should handle navigation, but wait a moment for state to update
+        await Future.delayed(const Duration(milliseconds: 500));
+        return;
+      }
+    }
 
     // Check if wallet is connected
     final isWalletConnected = ref.read(walletProvider);
@@ -144,6 +178,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       setState(() {
         _currentStep--;
       });
+    }
+  }
+
+  Future<void> _copyToClipboard(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Wallet address copied to clipboard'),
+            backgroundColor: AppConstants.successColor,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error copying to clipboard: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to copy: $e'),
+            backgroundColor: AppConstants.errorColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -305,152 +365,228 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             style: Theme.of(context).textTheme.displaySmall,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: AppConstants.spacingM),
+          const SizedBox(height: AppConstants.spacingS),
           Text(
             AppConstants.onboardingDescriptions[2],
             style: Theme.of(context).textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: AppConstants.spacingL),
+          const SizedBox(height: AppConstants.spacingM),
           
-          // Wallet Connection Status
-          Card(
-            color: AppConstants.surfaceColor,
-            child: Padding(
-              padding: const EdgeInsets.all(AppConstants.spacingM),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        isWalletConnected ? Icons.check_circle : Icons.error_outline,
-                        color: isWalletConnected 
-                            ? AppConstants.successColor 
-                            : AppConstants.errorColor,
-                        size: 20,
-                      ),
-                      const SizedBox(width: AppConstants.spacingS),
-                      Text(
-                        'Wallet Status',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppConstants.spacingS),
-                  Text(
-                    isWalletConnected 
-                        ? 'Connected' 
-                        : 'Not Connected',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: isWalletConnected 
-                          ? AppConstants.successColor 
-                          : AppConstants.errorColor,
-                    ),
-                  ),
-                  if (isWalletConnected && walletAddress != null) ...[
-                    const SizedBox(height: AppConstants.spacingXS),
-                    Text(
-                      '${walletAddress!.substring(0, 6)}...${walletAddress!.substring(walletAddress!.length - 4)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppConstants.textSecondaryColor,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppConstants.spacingM),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            // Navigate to wallet setup screen to reconnect
-                            if (mounted) {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const WalletSetupScreen(),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.refresh, size: 18),
-                          label: const Text('Reconnect'),
-                        ),
-                      ),
-                      const SizedBox(width: AppConstants.spacingS),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: isWalletConnected ? () async {
-                            // Show confirmation dialog
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Disconnect Wallet'),
-                                content: const Text(
-                                  'Are you sure you want to disconnect your wallet? '
-                                  'You will need to reconnect to create an avatar.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
+          // Wallet Connection Status - Small button with copy option
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () async {
+                  // Show wallet management menu
+                  if (mounted) {
+                    final action = await showDialog<String>(
+                      context: context,
+                      builder: (context) => SimpleDialog(
+                        title: const Text('Wallet Options'),
+                        children: [
+                          if (isWalletConnected && walletAddress != null) ...[
+                            // Display wallet address with copy button
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Wallet Address',
+                                    style: Theme.of(context).textTheme.labelMedium,
                                   ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppConstants.errorColor,
-                                    ),
-                                    child: const Text('Disconnect'),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: SelectableText(
+                                          walletAddress!,
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            fontFamily: 'monospace',
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy, size: 18),
+                                        onPressed: () async {
+                                          // Copy to clipboard without closing dialog
+                                          await Clipboard.setData(ClipboardData(text: walletAddress!));
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Wallet address copied to clipboard'),
+                                                backgroundColor: AppConstants.successColor,
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        tooltip: 'Copy address',
+                                        padding: const EdgeInsets.all(4),
+                                        constraints: const BoxConstraints(),
+                                        style: IconButton.styleFrom(
+                                          minimumSize: const Size(32, 32),
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            );
-                            
-                            if (confirmed == true && mounted) {
-                              try {
-                                await ref.read(walletProvider.notifier).disconnectWallet();
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Wallet disconnected'),
-                                      backgroundColor: AppConstants.successColor,
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error disconnecting wallet: $e'),
-                                      backgroundColor: AppConstants.errorColor,
-                                    ),
-                                  );
-                                }
-                              }
-                            }
-                          } : null,
-                          icon: const Icon(Icons.link_off, size: 18),
-                          label: const Text('Disconnect'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppConstants.errorColor,
+                            ),
+                            const Divider(),
+                            SimpleDialogOption(
+                              onPressed: () async {
+                                Navigator.pop(context);
+                                await _copyToClipboard(walletAddress!);
+                              },
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.copy, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Copy Wallet Address'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          SimpleDialogOption(
+                            onPressed: () => Navigator.pop(context, 'reconnect'),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.refresh, size: 20),
+                                SizedBox(width: 8),
+                                Text('Reconnect Wallet'),
+                              ],
+                            ),
                           ),
-                        ),
+                          if (isWalletConnected)
+                            SimpleDialogOption(
+                              onPressed: () => Navigator.pop(context, 'disconnect'),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.link_off, size: 20, color: AppConstants.errorColor),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Disconnect Wallet',
+                                    style: TextStyle(color: AppConstants.errorColor),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          SimpleDialogOption(
+                            onPressed: () => Navigator.pop(context, 'cancel'),
+                            child: const Text('Cancel'),
+                          ),
+                        ],
                       ),
-                    ],
+                    );
+                    
+                    if (action == 'reconnect' && mounted) {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const WalletSetupScreen(),
+                        ),
+                      );
+                    } else if (action == 'disconnect' && mounted) {
+                      // Show confirmation dialog
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Disconnect Wallet'),
+                          content: const Text(
+                            'Are you sure you want to disconnect your wallet? '
+                            'You will need to reconnect to create an avatar.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppConstants.errorColor,
+                              ),
+                              child: const Text('Disconnect'),
+                            ),
+                          ],
+                        ),
+                      );
+                      
+                      if (confirmed == true && mounted) {
+                        try {
+                          await ref.read(walletProvider.notifier).disconnectWallet();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Wallet disconnected'),
+                                backgroundColor: AppConstants.successColor,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error disconnecting wallet: $e'),
+                                backgroundColor: AppConstants.errorColor,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                icon: Icon(
+                  isWalletConnected ? Icons.check_circle : Icons.error_outline,
+                  size: 16,
+                  color: isWalletConnected 
+                      ? AppConstants.successColor 
+                      : AppConstants.errorColor,
+                ),
+                label: Text(
+                  isWalletConnected 
+                      ? (walletAddress != null 
+                          ? '${walletAddress!.substring(0, 6)}...${walletAddress!.substring(walletAddress!.length - 4)}'
+                          : 'Connected')
+                      : 'Not Connected',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isWalletConnected 
+                        ? AppConstants.successColor 
+                        : AppConstants.errorColor,
                   ),
-                ],
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: const Size(0, 32),
+                ),
               ),
-            ),
+              if (isWalletConnected && walletAddress != null)
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 16),
+                  onPressed: () => _copyToClipboard(walletAddress!),
+                  tooltip: 'Copy wallet address',
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: AppConstants.spacingL),
+          const SizedBox(height: AppConstants.spacingS),
           
-          // Avatar Image Selection (placeholder)
+          // Avatar Image Selection (placeholder) - Made smaller
           Container(
-            width: 100,
-            height: 100,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: AppConstants.surfaceColor,
               borderRadius: BorderRadius.circular(AppConstants.borderRadiusXXL),
@@ -458,7 +594,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             child: const Icon(
               Icons.person,
-              size: 50,
+              size: 40,
               color: AppConstants.primaryColor,
             ),
           ),
@@ -477,7 +613,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             decoration: const InputDecoration(
               labelText: 'Avatar Name',
               hintText: 'Enter your avatar name',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
+            style: const TextStyle(fontSize: 14),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return 'Please enter your avatar name';
@@ -491,16 +630,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               return null;
             },
           ),
-          const SizedBox(height: AppConstants.spacingM),
+          const SizedBox(height: AppConstants.spacingS),
           
-          // Bio Input
+          // Bio Input - Reduced to 2 lines
           TextFormField(
             controller: _bioController,
             decoration: const InputDecoration(
               labelText: 'Bio (Optional)',
               hintText: 'Tell us about yourself',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
-            maxLines: 3,
+            style: const TextStyle(fontSize: 14),
+            maxLines: 2,
             maxLength: AppConstants.maxBioLength,
             validator: (value) {
               if (value != null && value.trim().isNotEmpty) {
@@ -511,7 +653,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               return null;
             },
           ),
-          const SizedBox(height: AppConstants.spacingL),
+          const SizedBox(height: AppConstants.spacingM),
           
           Row(
             children: [
@@ -553,17 +695,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 value: (_currentStep + 1) / 3,
                 backgroundColor: AppConstants.textSecondaryColor.withOpacity(0.2),
                 valueColor: const AlwaysStoppedAnimation<Color>(AppConstants.primaryColor),
+                minHeight: 3,
               ),
-              const SizedBox(height: AppConstants.spacingM),
+              const SizedBox(height: AppConstants.spacingS),
               
               // Step Indicator
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(3, (index) {
                   return Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: index <= _currentStep 
@@ -573,7 +716,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   );
                 }),
               ),
-              const SizedBox(height: AppConstants.spacingL),
+              const SizedBox(height: AppConstants.spacingM),
               
               // Content
               Expanded(

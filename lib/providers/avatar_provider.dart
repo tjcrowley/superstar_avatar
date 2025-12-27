@@ -60,49 +60,82 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
 
   static AvatarsState _loadInitialState(SharedPreferences prefs) {
     try {
+      debugPrint('AvatarNotifier: Loading avatar state from SharedPreferences...');
+      
       // Load avatars list
       final avatarsJson = prefs.getString('${AppConstants.avatarDataKey}_list');
+      debugPrint('AvatarNotifier: avatarsJson key = ${AppConstants.avatarDataKey}_list');
+      debugPrint('AvatarNotifier: avatarsJson value = ${avatarsJson != null ? "found (${avatarsJson.length} chars)" : "null"}');
+      
       if (avatarsJson != null) {
         final avatarsData = jsonDecode(avatarsJson) as List;
         final loadedAvatars = avatarsData
             .map((data) => Avatar.fromJson(data as Map<String, dynamic>))
             .toList();
         
-        final selectedId = prefs.getString('${AppConstants.avatarDataKey}_selected');
+        debugPrint('AvatarNotifier: Loaded ${loadedAvatars.length} avatar(s) from list');
+        for (var avatar in loadedAvatars) {
+          debugPrint('AvatarNotifier: - Avatar ID: ${avatar.id}, Name: ${avatar.name}, IsPrimary: ${avatar.isPrimary}');
+        }
         
-        return AvatarsState(
+        final selectedId = prefs.getString('${AppConstants.avatarDataKey}_selected');
+        debugPrint('AvatarNotifier: Selected avatar ID: $selectedId');
+        
+        final state = AvatarsState(
           avatars: loadedAvatars,
           selectedAvatarId: selectedId,
         );
+        debugPrint('AvatarNotifier: hasAvatar = ${state.hasAvatar}');
+        return state;
       } else {
         // Try to load single avatar for backward compatibility
+        debugPrint('AvatarNotifier: No list found, trying single avatar key...');
         final avatarJson = prefs.getString(AppConstants.avatarDataKey);
+        debugPrint('AvatarNotifier: Single avatar key = ${AppConstants.avatarDataKey}');
+        debugPrint('AvatarNotifier: Single avatar value = ${avatarJson != null ? "found (${avatarJson.length} chars)" : "null"}');
+        
         if (avatarJson != null) {
           final avatarData = jsonDecode(avatarJson);
           final avatar = Avatar.fromJson(avatarData);
-          return AvatarsState(
+          debugPrint('AvatarNotifier: Loaded single avatar - ID: ${avatar.id}, Name: ${avatar.name}, IsPrimary: ${avatar.isPrimary}');
+          
+          final state = AvatarsState(
             avatars: [avatar],
             selectedAvatarId: avatar.id,
           );
+          debugPrint('AvatarNotifier: hasAvatar = ${state.hasAvatar}');
+          return state;
         }
       }
-    } catch (e) {
-      debugPrint('Error loading avatars: $e');
+      
+      debugPrint('AvatarNotifier: No avatars found in SharedPreferences');
+    } catch (e, stack) {
+      debugPrint('AvatarNotifier: Error loading avatars: $e');
+      debugPrint('AvatarNotifier: Stack: $stack');
     }
+    
+    debugPrint('AvatarNotifier: Returning empty state');
     return AvatarsState(avatars: []);
   }
 
   Future<void> _saveAvatars() async {
     try {
+      debugPrint('AvatarNotifier: Saving ${state.avatars.length} avatar(s)...');
       final avatarsJson = jsonEncode(
         state.avatars.map((avatar) => avatar.toJson()).toList(),
       );
       await _prefs.setString('${AppConstants.avatarDataKey}_list', avatarsJson);
+      debugPrint('AvatarNotifier: Saved avatars list (${avatarsJson.length} chars)');
+      
       if (state.selectedAvatarId != null) {
         await _prefs.setString('${AppConstants.avatarDataKey}_selected', state.selectedAvatarId!);
+        debugPrint('AvatarNotifier: Saved selected avatar ID: ${state.selectedAvatarId}');
       }
-    } catch (e) {
-      debugPrint('Error saving avatars: $e');
+      
+      debugPrint('AvatarNotifier: Avatar state saved successfully');
+    } catch (e, stack) {
+      debugPrint('AvatarNotifier: Error saving avatars: $e');
+      debugPrint('AvatarNotifier: Stack: $stack');
     }
   }
 
@@ -121,6 +154,18 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
       if (!_blockchainService.isWalletConnected) {
         debugPrint('AvatarNotifier: Wallet not connected, throwing error');
         throw Exception('Identity not connected');
+      }
+
+      // First, check if avatars exist on blockchain but not in local state
+      if (state.avatars.isEmpty) {
+        debugPrint('AvatarNotifier: Local state empty, checking blockchain for existing avatars...');
+        await loadAvatarsFromBlockchain();
+        
+        // After loading, check again if we now have avatars
+        if (state.hasAvatar) {
+          debugPrint('AvatarNotifier: Found existing avatar(s) on blockchain, cannot create new primary avatar');
+          throw Exception('Avatar already exists. Please use your existing avatar.');
+        }
       }
 
       if (state.hasPrimaryAvatar) {
@@ -459,8 +504,143 @@ class AvatarNotifier extends StateNotifier<AvatarsState> {
     }
   }
 
+  /// Load avatars from blockchain when local state is empty
+  Future<void> loadAvatarsFromBlockchain() async {
+    try {
+      if (!_blockchainService.isWalletConnected) {
+        debugPrint('AvatarNotifier: Cannot load avatars - wallet not connected');
+        return;
+      }
+
+      debugPrint('AvatarNotifier: Loading avatars from blockchain...');
+      
+      // Get all avatar IDs for this wallet address
+      final walletAddress = _blockchainService.walletAddress!;
+      final avatarIds = await _blockchainService.getAvatarIdsByAddress(walletAddress);
+      
+      debugPrint('AvatarNotifier: Found ${avatarIds.length} avatar(s) on blockchain');
+      
+      if (avatarIds.isEmpty) {
+        debugPrint('AvatarNotifier: No avatars found on blockchain');
+        return;
+      }
+      
+      final loadedAvatars = <Avatar>[];
+      
+      for (final avatarId in avatarIds) {
+        try {
+          debugPrint('AvatarNotifier: Loading avatar $avatarId from blockchain...');
+          
+          // Get avatar profile from blockchain
+          final blockchainProfile = await _blockchainService.getAvatarProfile(avatarId);
+          if (blockchainProfile == null) {
+            debugPrint('AvatarNotifier: Avatar $avatarId profile not found on blockchain');
+            continue;
+          }
+          
+          // Get power levels from blockchain
+          final updatedPowers = <Power>[];
+          for (final powerType in PowerType.values) {
+            try {
+              final powerData = await _blockchainService.getPowerData(
+                avatarId,
+                powerType.index,
+              );
+              final blockchainLevel = powerData['level'] as int;
+              final blockchainExperience = powerData['experience'] as int? ?? 0;
+              
+              // Get default power to get name, description, and icon
+              final defaultPower = Power.defaultPowers.firstWhere((p) => p.type == powerType);
+              
+              updatedPowers.add(Power(
+                type: powerType,
+                name: defaultPower.name,
+                description: defaultPower.description,
+                icon: defaultPower.icon,
+                level: blockchainLevel,
+                experience: blockchainExperience,
+                experienceToNextLevel: AppConstants.levelExperienceRequirements[blockchainLevel] ?? 100,
+                lastUpdated: DateTime.now(),
+              ));
+            } catch (e) {
+              debugPrint('AvatarNotifier: Error loading power ${powerType.name} for avatar $avatarId: $e');
+              // Use default power if loading fails
+              updatedPowers.add(Power.defaultPowers.firstWhere((p) => p.type == powerType));
+            }
+          }
+          
+          // Get house membership
+          String? houseId;
+          String? houseName;
+          try {
+            houseId = await _blockchainService.getAvatarHouse(avatarId);
+            if (houseId != null && houseId.isNotEmpty) {
+              // Try to get house name (if available)
+              // For now, we'll just use the houseId
+              houseName = houseId; // TODO: Fetch actual house name if available
+            }
+          } catch (e) {
+            debugPrint('AvatarNotifier: Error loading house for avatar $avatarId: $e');
+          }
+          
+          final isPrimary = blockchainProfile['isPrimary'] as bool? ?? false;
+          final updatedAt = blockchainProfile['updatedAt'] as int? ?? 0;
+          
+          final avatar = Avatar(
+            id: avatarId,
+            name: blockchainProfile['name'] as String,
+            bio: blockchainProfile['bio'] as String?,
+            avatarImage: blockchainProfile['imageUri'] as String?,
+            powers: updatedPowers,
+            walletAddress: walletAddress,
+            houseId: houseId,
+            houseName: houseName,
+            isPrimary: isPrimary,
+            createdAt: DateTime.fromMillisecondsSinceEpoch(updatedAt * 1000),
+            lastActive: DateTime.fromMillisecondsSinceEpoch(updatedAt * 1000),
+          );
+          
+          loadedAvatars.add(avatar);
+          debugPrint('AvatarNotifier: Loaded avatar $avatarId: ${avatar.name} (Primary: $isPrimary)');
+        } catch (e, stack) {
+          debugPrint('AvatarNotifier: Error loading avatar $avatarId: $e');
+          debugPrint('AvatarNotifier: Stack: $stack');
+        }
+      }
+      
+      if (loadedAvatars.isNotEmpty) {
+        // Sort: primary avatar first
+        loadedAvatars.sort((a, b) {
+          if (a.isPrimary && !b.isPrimary) return -1;
+          if (!a.isPrimary && b.isPrimary) return 1;
+          return 0;
+        });
+        
+        // Select primary avatar or first avatar
+        final selectedId = loadedAvatars.firstWhere(
+          (a) => a.isPrimary,
+          orElse: () => loadedAvatars.first,
+        ).id;
+        
+        state = state.copyWith(
+          avatars: loadedAvatars,
+          selectedAvatarId: selectedId,
+        );
+        await _saveAvatars();
+        debugPrint('AvatarNotifier: Loaded ${loadedAvatars.length} avatar(s) from blockchain');
+      }
+    } catch (e, stack) {
+      debugPrint('AvatarNotifier: Error loading avatars from blockchain: $e');
+      debugPrint('AvatarNotifier: Stack: $stack');
+    }
+  }
+
   Future<void> syncWithBlockchain() async {
-    if (state.avatars.isEmpty) return;
+    if (state.avatars.isEmpty) {
+      // If local state is empty, try loading from blockchain first
+      await loadAvatarsFromBlockchain();
+      return;
+    }
 
     try {
       if (!_blockchainService.isWalletConnected) {

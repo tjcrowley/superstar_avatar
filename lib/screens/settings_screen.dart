@@ -5,7 +5,9 @@ import '../constants/app_constants.dart';
 import '../providers/wallet_provider.dart';
 import '../services/secure_storage_service.dart';
 import '../services/blockchain_service.dart';
+import '../services/admin_service.dart';
 import 'gas_payment_screen.dart';
+import 'admin_dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -17,8 +19,36 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _secureStorage = SecureStorageService();
+  final _adminService = AdminService();
   bool _showMnemonic = false;
   String? _mnemonic;
+  bool _isAdmin = false;
+  bool _isCheckingAdmin = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+  
+  Future<void> _checkAdminStatus() async {
+    try {
+      final isAdmin = await _adminService.isAdmin();
+      if (mounted) {
+        setState(() {
+          _isAdmin = isAdmin;
+          _isCheckingAdmin = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAdmin = false;
+          _isCheckingAdmin = false;
+        });
+      }
+    }
+  }
 
   Future<void> _loadMnemonic() async {
     try {
@@ -176,6 +206,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           
           const SizedBox(height: AppConstants.spacingL),
+          
+          // Admin Section (only show if user is admin)
+          if (!_isCheckingAdmin && _isAdmin) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppConstants.spacingM),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.admin_panel_settings,
+                          color: AppConstants.primaryColor,
+                        ),
+                        const SizedBox(width: AppConstants.spacingS),
+                        Text(
+                          'Admin',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.spacingM),
+                    ListTile(
+                      leading: const Icon(Icons.dashboard),
+                      title: const Text('Admin Dashboard'),
+                      subtitle: const Text('Manage system settings, admins, and paymaster'),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AdminDashboardScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppConstants.spacingL),
+          ],
           
           // Danger Zone
           Card(
