@@ -7,6 +7,7 @@ import '../providers/activities_provider.dart';
 import '../services/blockchain_service.dart';
 import '../services/goldfire_token_service.dart';
 import '../services/admin_service.dart';
+import '../services/ipfs_service.dart';
 import '../widgets/gradient_button.dart';
 import 'activity_authoring_screen.dart';
 
@@ -236,21 +237,56 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
     final activityTypeString = activity.activityType.toString().split('.').last;
     final activityTypeColor = AppConstants.activityTypeColors[activityTypeString] ?? AppConstants.primaryColor;
     final activityTypeIcon = AppConstants.activityTypeIcons[activityTypeString] ?? '📝';
+    
+    // Get image URL from IPFS hash or imageUrl
+    final imageUrl = activity.imageUrl ?? activity.decentralizedStorageRef;
+    final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    
     return Card(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingM),
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.spacingM),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Activity Image (if available) - Primary representation
+          if (hasImage)
+            Container(
+              height: 200,
+              width: double.infinity,
+              color: AppConstants.textSecondaryColor.withValues(alpha: 0.1),
+              child: Image.network(
+                IPFSService().getIPFSUrl(imageUrl.replaceFirst('ipfs://', '')),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback to text representation if image fails to load
+                  return _buildImageFallback(activity, activityTypeColor, activityTypeIcon);
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  );
+                },
+              ),
+            ),
+          
+          Padding(
+            padding: const EdgeInsets.all(AppConstants.spacingM),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    activity.title,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        activity.title,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppConstants.spacingS,
@@ -297,16 +333,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
                   ),
                 ],
               ),
-            ),
-            
-            const SizedBox(height: AppConstants.spacingS),
-            
-            Text(
-              activity.description,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppConstants.textSecondaryColor,
-              ),
-            ),
+                  ),
             
             const SizedBox(height: AppConstants.spacingM),
             
@@ -426,15 +453,57 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
               ],
             ),
             
-            // TODO: Add voting UI for house activities
-            // This will show pending activities that need voting
-            // and allow users to vote for/against proposed activities
-            // Example:
-            // if (activity.isPending) {
-            //   _buildVotingSection(activity);
-            // }
-          ],
-        ),
+                // TODO: Add voting UI for house activities
+                // This will show pending activities that need voting
+                // and allow users to vote for/against proposed activities
+                // Example:
+                // if (activity.isPending) {
+                //   _buildVotingSection(activity);
+                // }
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build fallback representation when image is not available or fails to load
+  Widget _buildImageFallback(ActivityScript activity, Color activityTypeColor, String activityTypeIcon) {
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.spacingL),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Activity Type Icon
+          Text(
+            activityTypeIcon,
+            style: const TextStyle(fontSize: 64),
+          ),
+          const SizedBox(height: AppConstants.spacingM),
+          // Activity Title
+          Text(
+            activity.title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: activityTypeColor,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppConstants.spacingS),
+          // Activity Description (abbreviated)
+          Text(
+            activity.description.length > 120
+                ? '${activity.description.substring(0, 120)}...'
+                : activity.description,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppConstants.textSecondaryColor,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

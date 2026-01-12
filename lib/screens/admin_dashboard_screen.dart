@@ -26,7 +26,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   List<String> _admins = [];
   String _mintToAddress = '';
   String _mintAmount = '';
+  String _depositAmount = '';
   String _withdrawAmount = '';
+  bool _isDepositing = false;
   
   // Event Producer Registration
   String _producerId = '';
@@ -131,16 +133,59 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Future<void> _depositToPaymaster() async {
-    try {
-      // This would require sending native tokens
-      // For now, show instructions
+    if (_depositAmount.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Use depositToPaymaster with native tokens'),
-            backgroundColor: AppConstants.primaryColor,
+            content: Text('Please enter deposit amount'),
+            backgroundColor: AppConstants.warningColor,
           ),
         );
+      }
+      return;
+    }
+
+    setState(() {
+      _isDepositing = true;
+    });
+
+    try {
+      // Parse MATIC amount to wei
+      final maticAmount = double.tryParse(_depositAmount);
+      if (maticAmount == null || maticAmount <= 0) {
+        throw Exception('Invalid amount. Please enter a positive number.');
+      }
+
+      // Convert MATIC to wei (1 MATIC = 1e18 wei)
+      final amountInWei = BigInt.from(maticAmount * 1e18);
+
+      // Check wallet balance
+      final balance = await _blockchainService.getBalance();
+      if (balance < amountInWei) {
+        throw Exception(
+          'Insufficient balance. You have ${EtherAmount.fromBigInt(EtherUnit.wei, balance).getValueInUnit(EtherUnit.ether).toStringAsFixed(4)} MATIC, '
+          'but need ${maticAmount.toStringAsFixed(4)} MATIC.'
+        );
+      }
+
+      // Deposit to paymaster
+      final txHash = await _adminService.depositToPaymaster(amountInWei);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deposit submitted! Transaction: $txHash'),
+            backgroundColor: AppConstants.successColor,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        setState(() {
+          _depositAmount = '';
+        });
+        // Refresh balance after a short delay to allow transaction to process
+        Future.delayed(const Duration(seconds: 3), () {
+          _checkAdminStatus();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -148,8 +193,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           SnackBar(
             content: Text('Error: $e'),
             backgroundColor: AppConstants.errorColor,
+            duration: const Duration(seconds: 5),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDepositing = false;
+        });
       }
     }
   }
@@ -623,16 +675,76 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       'Paymaster Management',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
+                    const SizedBox(height: 8),
+                    // Paymaster Balance Display
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Paymaster Balance:',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          Text(
+                            '${EtherAmount.fromBigInt(EtherUnit.wei, _paymasterBalance).getValueInUnit(EtherUnit.ether).toStringAsFixed(4)} MATIC',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppConstants.successColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
+                    // Deposit Section
+                    Text(
+                      'Deposit to Paymaster',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Deposit Amount (MATIC)',
+                        hintText: '0.0',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.add_circle_outline),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (value) => _depositAmount = value,
+                      enabled: !_isDepositing,
+                    ),
+                    const SizedBox(height: 8),
                     GradientButton(
-                      onPressed: _depositToPaymaster,
-                      child: const Text('Deposit to Paymaster'),
+                      onPressed: _isDepositing ? null : _depositToPaymaster,
+                      child: _isDepositing
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Deposit to Paymaster'),
+                    ),
+                    const SizedBox(height: 16),
+                    // Withdraw Section
+                    Text(
+                      'Withdraw from Paymaster',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       decoration: const InputDecoration(
                         labelText: 'Withdraw Amount (MATIC)',
+                        hintText: '0.0',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.remove_circle_outline),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       onChanged: (value) => _withdrawAmount = value,

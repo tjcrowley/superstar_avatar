@@ -1,12 +1,15 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../constants/app_constants.dart';
 import '../models/activity_script.dart';
 import '../models/power.dart';
 import '../providers/avatar_provider.dart';
 import '../providers/activity_authoring_provider.dart';
 import '../providers/activities_provider.dart';
+import '../services/ipfs_service.dart';
 import '../widgets/gradient_button.dart';
 
 /// Activity Authoring Screen - Goldfire Phase 1 Integration
@@ -36,6 +39,12 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
   int _minParticipants = 1;
   int _maxParticipants = 1;
   bool _isSubmitting = false;
+  
+  // Image upload
+  final ImagePicker _imagePicker = ImagePicker();
+  Uint8List? _selectedImageBytes;
+  String? _imageIpfsHash;
+  bool _isUploadingImage = false;
 
   @override
   void dispose() {
@@ -58,6 +67,113 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
     setState(() {
       _selectedSecondaryPowers.remove(power);
     });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      setState(() {
+        _isUploadingImage = true;
+      });
+
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        // Read image as bytes
+        final Uint8List imageBytes = await image.readAsBytes();
+        
+        setState(() {
+          _selectedImageBytes = imageBytes;
+        });
+
+        // Upload to IPFS
+        try {
+          final ipfsService = IPFSService();
+          final filename = 'activity_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final ipfsHash = await ipfsService.uploadImage(imageBytes, filename);
+          
+          setState(() {
+            _imageIpfsHash = ipfsService.getIPFSUri(ipfsHash);
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image uploaded to IPFS successfully!'),
+                backgroundColor: AppConstants.successColor,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image to IPFS: $e'),
+                backgroundColor: AppConstants.errorColor,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          // Clear image selection on error
+          setState(() {
+            _selectedImageBytes = null;
+            _imageIpfsHash = null;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: AppConstants.errorColor,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isUploadingImage = false;
+      });
+    }
+  }
+
+  Future<void> _showImageSourceDialog() async {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Image Source'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _submitActivity() async {
@@ -107,16 +223,18 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
         isGroupActivity: _isGroupActivity,
         minParticipants: _minParticipants,
         maxParticipants: _maxParticipants,
+        imageUrl: _imageIpfsHash, // IPFS URI for the image
         metadata: {
           'requiresVerification': _requiresVerification,
         },
+        decentralizedStorageRef: _imageIpfsHash, // Also store in decentralizedStorageRef
       );
 
       // Save to blockchain via activity authoring provider
       final authoringNotifier = ref.read(activityAuthoringProvider.notifier);
       final txHash = await authoringNotifier.createActivity(
         activity: activity,
-        decentralizedStorageRef: null, // TODO: Upload to IPFS and get hash
+        decentralizedStorageRef: _imageIpfsHash, // IPFS hash for the image
       );
 
       if (mounted) {
@@ -163,6 +281,12 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
             _buildSectionTitle('Activity Type (Required)'),
             const SizedBox(height: AppConstants.spacingS),
             _buildActivityTypeSelector(),
+            const SizedBox(height: AppConstants.spacingL),
+
+            // Activity Image
+            _buildSectionTitle('Activity Image (Optional)'),
+            const SizedBox(height: AppConstants.spacingS),
+            _buildImageUploadSection(),
             const SizedBox(height: AppConstants.spacingL),
 
             // Basic Information
@@ -594,6 +718,73 @@ class _ActivityAuthoringScreenState extends ConsumerState<ActivityAuthoringScree
       case ActivityDifficulty.expert:
         return 'Expert';
     }
+  }
+
+  Widget _buildImageUploadSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Image Preview
+        if (_selectedImageBytes != null || _imageIpfsHash != null)
+          Container(
+            height: 200,
+            margin: const EdgeInsets.only(bottom: AppConstants.spacingM),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppConstants.borderRadiusM),
+              border: Border.all(color: AppConstants.textSecondaryColor.withValues(alpha: 0.3)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppConstants.borderRadiusM),
+              child: _selectedImageBytes != null
+                  ? Image.memory(
+                      _selectedImageBytes!,
+                      fit: BoxFit.cover,
+                    )
+                  : (_imageIpfsHash != null
+                      ? Image.network(
+                          IPFSService().getIPFSUrl(_imageIpfsHash!.replaceFirst('ipfs://', '')),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: AppConstants.textSecondaryColor.withValues(alpha: 0.1),
+                            child: const Center(
+                              child: Icon(Icons.image_not_supported, size: 48),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink()),
+            ),
+          ),
+        
+        // Upload Button
+        OutlinedButton.icon(
+          onPressed: _isUploadingImage ? null : _showImageSourceDialog,
+          icon: _isUploadingImage
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_photo_alternate),
+          label: Text(_isUploadingImage
+              ? 'Uploading to IPFS...'
+              : _selectedImageBytes != null
+                  ? 'Change Image'
+                  : 'Upload Activity Image'),
+        ),
+        
+        // Info Text
+        if (_imageIpfsHash != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppConstants.spacingS),
+            child: Text(
+              '✓ Image uploaded to IPFS',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppConstants.successColor,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

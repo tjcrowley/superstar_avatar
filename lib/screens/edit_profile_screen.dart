@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../constants/app_constants.dart';
 import '../providers/avatar_provider.dart';
 import '../services/blockchain_service.dart';
+import '../services/ipfs_service.dart';
 import '../widgets/gradient_button.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -71,19 +72,40 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           _selectedImageBytes = imageBytes;
         });
 
-        // TODO: Upload image to IPFS or decentralized storage
-        // For now, we'll use a placeholder URI
-        // In production, integrate with IPFS (e.g., via Pinata, NFT.Storage, etc.)
-        _imageUri = 'ipfs://placeholder_hash_${DateTime.now().millisecondsSinceEpoch}';
-        
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Image selected. Upload to IPFS when saving profile.'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+        // Upload image to IPFS
+        try {
+          final ipfsService = IPFSService();
+          final filename = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final ipfsHash = await ipfsService.uploadImage(imageBytes, filename);
+          
+          setState(() {
+            _imageUri = ipfsService.getIPFSUri(ipfsHash);
+          });
+
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image uploaded to IPFS successfully!'),
+                backgroundColor: AppConstants.successColor,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image to IPFS: $e'),
+                backgroundColor: AppConstants.errorColor,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          // Clear image selection on error
+          setState(() {
+            _selectedImageBytes = null;
+          });
         }
       }
     } catch (e) {
@@ -257,13 +279,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 _selectedImageBytes!,
                                 fit: BoxFit.cover,
                               )
-                            : (_imageUri != null && _imageUri!.startsWith('http'))
-                                ? Image.network(
-                                    _imageUri!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        _buildPlaceholderAvatar(avatar?.name),
-                                  )
+                            : (_imageUri != null && _imageUri!.isNotEmpty)
+                                ? _buildImageFromUri(_imageUri!, avatar?.name)
                                 : _buildPlaceholderAvatar(avatar?.name),
                       ),
                     ),
@@ -387,6 +404,41 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildImageFromUri(String imageUri, String? name) {
+    final ipfsService = IPFSService();
+    String imageUrl;
+    
+    if (imageUri.startsWith('ipfs://')) {
+      // Convert IPFS URI to gateway URL
+      imageUrl = ipfsService.getIPFSUrl(imageUri.replaceFirst('ipfs://', ''));
+    } else if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+      // Use HTTP/HTTPS URL as-is
+      imageUrl = imageUri;
+    } else {
+      // Invalid URI, show placeholder
+      return _buildPlaceholderAvatar(name);
+    }
+    
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => _buildPlaceholderAvatar(name),
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: AppConstants.primaryColor.withOpacity(0.1),
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          ),
+        );
+      },
     );
   }
 

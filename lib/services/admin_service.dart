@@ -418,6 +418,9 @@ class AdminService {
   }
 
   /// Deposit native tokens to paymaster (admin only)
+  /// Note: This uses a regular transaction (not via TransactionService) because:
+  /// 1. Admin needs to send native tokens as value
+  /// 2. Admin should pay gas for this operation (depositing funds to paymaster)
   Future<String> depositToPaymaster(BigInt amount) async {
     if (!_blockchainServiceInstance.isWalletConnected) {
       throw Exception('Identity not connected');
@@ -426,8 +429,11 @@ class AdminService {
     await _initializeContracts();
 
     try {
+      debugPrint('Depositing ${amount} wei (${EtherAmount.fromBigInt(EtherUnit.wei, amount).getValueInUnit(EtherUnit.ether)} MATIC) to paymaster');
+      
       final function = _paymasterContract!.function('deposit');
       
+      // Create transaction with native token value
       final transaction = Transaction.callContract(
         contract: _paymasterContract!,
         function: function,
@@ -435,15 +441,18 @@ class AdminService {
         value: EtherAmount.fromBigInt(EtherUnit.wei, amount),
       );
 
+      // Send transaction directly (admin needs to pay gas for deposit)
       final txHash = await _blockchainServiceInstance.client.sendTransaction(
         _blockchainServiceInstance.credentials,
         transaction,
         chainId: int.parse(AppConstants.polygonChainId),
       );
 
+      debugPrint('Deposit transaction submitted: $txHash');
       return txHash;
     } catch (e) {
       debugPrint('Error depositing to paymaster: $e');
+      debugPrint('Error type: ${e.runtimeType}');
       throw Exception('Failed to deposit to paymaster: $e');
     }
   }

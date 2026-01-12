@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_constants.dart';
 import '../models/avatar.dart';
+import '../services/ipfs_service.dart';
 
 class AvatarProfileCard extends StatelessWidget {
   final Avatar avatar;
@@ -41,23 +42,10 @@ class AvatarProfileCard extends StatelessWidget {
                     width: 2,
                   ),
                 ),
-                child: avatar.avatarImage != null
+                child: avatar.avatarImage != null && avatar.avatarImage!.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(AppConstants.borderRadiusXL),
-                        child: Image.network(
-                          avatar.avatarImage!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Center(
-                              child: Text(
-                                avatar.name[0].toUpperCase(),
-                                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                                  color: AppConstants.primaryColor,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                        child: _buildAvatarImage(avatar.avatarImage!, avatar.name, context),
                       )
                     : Center(
                         child: Text(
@@ -196,6 +184,58 @@ class AvatarProfileCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAvatarImage(String imageUri, String name, BuildContext context) {
+    final ipfsService = IPFSService();
+    String imageUrl;
+    
+    if (imageUri.startsWith('ipfs://')) {
+      // Convert IPFS URI to gateway URL
+      imageUrl = ipfsService.getIPFSUrl(imageUri.replaceFirst('ipfs://', ''));
+    } else if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+      // Use HTTP/HTTPS URL as-is
+      imageUrl = imageUri;
+    } else {
+      // Invalid URI, show placeholder
+      return Center(
+        child: Text(
+          name[0].toUpperCase(),
+          style: Theme.of(context).textTheme.displayMedium?.copyWith(
+            color: AppConstants.primaryColor,
+          ),
+        ),
+      );
+    }
+    
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Center(
+          child: Text(
+            name[0].toUpperCase(),
+            style: Theme.of(context).textTheme.displayMedium?.copyWith(
+              color: AppConstants.primaryColor,
+            ),
+          ),
+        );
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: AppConstants.primaryColor.withOpacity(0.1),
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+            ),
+          ),
+        );
+      },
     );
   }
 } 

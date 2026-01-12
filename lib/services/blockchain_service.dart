@@ -1676,6 +1676,12 @@ class BlockchainService {
 
   // Avatar Registry Methods
   /// Create a new avatar profile on the blockchain (gasless via paymaster)
+  /// 
+  /// This method uses TransactionService which handles:
+  /// - Account abstraction (ERC-4337) for gasless transactions
+  /// - Account creation via initCode (sponsored by paymaster when enabled)
+  /// - User whitelisting for gasless transactions
+  /// - Fallback to regular transactions if account abstraction fails
   Future<String> createAvatarProfile({
     required String avatarId,
     required String name,
@@ -1687,130 +1693,71 @@ class BlockchainService {
     if (!isWalletConnected) throw Exception('Identity not connected');
 
     try {
-      // Try to whitelist user for gasless avatar creation first
-      // This will fail silently if sponsorship is not enabled, which is fine
-      try {
-        final adminService = AdminService();
-        final isSponsored = await adminService.isAvatarCreationSponsored();
-        
-        if (isSponsored) {
-          debugPrint('Avatar creation sponsorship enabled, whitelisting user...');
-          try {
-            await adminService.whitelistUserForAvatarCreation(_walletAddress!);
-            debugPrint('User whitelisted for gasless avatar creation');
-          } catch (e) {
-            debugPrint('Could not whitelist user (may already be whitelisted): $e');
-            // Continue anyway - user might already be whitelisted
-          }
-        }
-      } catch (e) {
-        debugPrint('Could not check/whitelist for avatar creation sponsorship: $e');
-        // Continue with regular transaction if whitelisting fails
-      }
-
-      // Check if paymaster sponsorship is enabled - if so, skip balance check
-      // The transaction service will handle paymaster sponsorship
-      final adminService = AdminService();
-      bool paymasterEnabled = false;
-      try {
-        final allTransactionsEnabled = await adminService.isAllTransactionsSponsored();
-        final avatarCreationEnabled = await adminService.isAvatarCreationSponsored();
-        paymasterEnabled = allTransactionsEnabled || avatarCreationEnabled;
-        debugPrint('Paymaster enabled: allTransactions=$allTransactionsEnabled, avatarCreation=$avatarCreationEnabled');
-      } catch (e) {
-        debugPrint('Could not check paymaster status: $e');
-        debugPrint('Paymaster check failed, will proceed with regular transaction if balance is sufficient');
-        // If paymaster check fails, we'll still check balance and proceed with regular transaction
-      }
-
-      // Only check balance if paymaster is not enabled
-      // If paymaster is enabled, let the transaction service handle it
-      // If paymaster check failed, we'll still check balance and proceed
-      if (!paymasterEnabled) {
-        debugPrint('Paymaster not enabled, checking wallet balance...');
-        debugPrint('Wallet address being checked: ${_walletAddress}');
-        try {
-          final balance = await getBalance();
-          final minRequired = BigInt.from(10000000000000000); // 0.01 MATIC minimum
-          
-          // Convert balance to MATIC for logging
-          final balanceInMatic = balance / BigInt.from(1000000000000000000);
-          final remainder = balance % BigInt.from(1000000000000000000);
-          final remainderStr = remainder.toString().padLeft(18, '0');
-          final remainderDisplay = remainderStr.length > 4 ? remainderStr.substring(0, 4) : remainderStr;
-          debugPrint('Wallet balance: ${balanceInMatic}.$remainderDisplay MATIC (${balance} wei)');
-          debugPrint('Minimum required: 0.01 MATIC (${minRequired} wei)');
-          
-          if (balance < minRequired) {
-            debugPrint('Balance check failed: ${balance} < ${minRequired}');
-            throw Exception(
-              'Insufficient funds. You need at least 0.01 MATIC for gas fees. '
-              'Please get testnet MATIC from the faucet.',
-            );
-          }
-          debugPrint('Balance check passed: ${balance} >= ${minRequired}');
-        } catch (e) {
-          debugPrint('Error during balance check: $e');
-          // If balance check fails due to RPC error, log it but don't block the transaction
-          // The transaction itself will fail if there truly isn't enough funds
-          final errorStr = e.toString().toLowerCase();
-          if (errorStr.contains('rpc') || errorStr.contains('network') || errorStr.contains('connection')) {
-            debugPrint('Balance check failed due to network/RPC error - proceeding with transaction anyway');
-            debugPrint('Transaction will fail at execution time if funds are insufficient');
-          } else {
-            // Re-throw balance errors (like insufficient funds)
-            rethrow;
-          }
-        }
-      } else {
-        debugPrint('Paymaster enabled - skipping balance check, transaction will be sponsored');
-      }
+      debugPrint('Creating avatar profile: $avatarId');
+      debugPrint('Paymaster sponsorship will be handled by TransactionService');
 
       final function = _avatarRegistryContract.function('createAvatar');
       final params = [avatarId, name, bio, imageUri, houseId, metadata];
 
       // Use TransactionService to route through paymaster (account abstraction)
+      // TransactionService handles:
+      // 1. User whitelisting for gasless transactions
+      // 2. Account creation via initCode (sponsored by paymaster when enabled)
+      // 3. Gasless transaction routing through bundler
+      // 4. Fallback to regular transactions if needed
       final txHash = await transactionService.sendTransaction(
         contract: _avatarRegistryContract,
         function: function,
         parameters: params,
       );
 
+      debugPrint('Avatar profile creation transaction submitted: $txHash');
       return txHash;
     } catch (e) {
       debugPrint('Error creating avatar profile: $e');
       debugPrint('Error type: ${e.runtimeType}');
       debugPrint('Error string: ${e.toString()}');
       
-      // Check if paymaster was enabled - if so, the error might be from account creation
-      // Account creation requires MATIC and is not sponsored by paymaster
-      bool paymasterWasEnabled = false;
-      try {
-        final adminService = AdminService();
-        final allTransactionsEnabled = await adminService.isAllTransactionsSponsored();
-        final avatarCreationEnabled = await adminService.isAvatarCreationSponsored();
-        paymasterWasEnabled = allTransactionsEnabled || avatarCreationEnabled;
-        debugPrint('Paymaster was enabled when error occurred: $paymasterWasEnabled');
-      } catch (checkError) {
-        debugPrint('Could not check paymaster status in error handler: $checkError');
-      }
-      
       // Check if it's an insufficient funds error
       if (_isInsufficientFundsError(e)) {
-        // If paymaster was enabled, the error is likely from account creation
-        // Account creation requires MATIC and cannot be sponsored by paymaster
-        if (paymasterWasEnabled) {
+        // Check if paymaster sponsorship is enabled
+        bool paymasterEnabled = false;
+        try {
+          final adminService = AdminService();
+          final allTransactionsEnabled = await adminService.isAllTransactionsSponsored();
+          final avatarCreationEnabled = await adminService.isAvatarCreationSponsored();
+          paymasterEnabled = allTransactionsEnabled || avatarCreationEnabled;
+        } catch (checkError) {
+          debugPrint('Could not check paymaster status in error handler: $checkError');
+        }
+        
+        if (paymasterEnabled) {
+          // If paymaster is enabled but we still got insufficient funds error,
+          // it might be because:
+          // 1. Paymaster doesn't have enough funds
+          // 2. Account creation failed (though it should be sponsored)
+          // 3. Transaction fell back to regular transaction
           throw Exception(
-            'Account creation requires MATIC for gas fees (one-time setup). '
-            'Even though avatar creation is sponsored, the initial account creation needs MATIC. '
-            'Please get testnet MATIC from the faucet to create your account, then future transactions will be gasless.',
+            'Transaction failed due to insufficient funds. '
+            'Even though paymaster sponsorship is enabled, the transaction may have fallen back to a regular transaction. '
+            'Please ensure the paymaster has sufficient funds, or get testnet MATIC from the faucet as a fallback.',
           );
         } else {
           throw Exception(
             'Insufficient funds. You need MATIC to pay for gas fees. '
-            'Please get testnet MATIC from the faucet.',
+            'Please get testnet MATIC from the faucet, or enable paymaster sponsorship for gasless transactions.',
           );
         }
+      }
+      
+      // Re-throw with more context
+      final errorMessage = e.toString();
+      if (errorMessage.contains('Bundler') || errorMessage.contains('bundler')) {
+        throw Exception(
+          'Failed to create avatar: Bundler error. '
+          'The account abstraction service may not be properly configured. '
+          'Please check your bundler RPC URL in app_constants.dart',
+        );
       }
       
       throw Exception('Failed to create avatar profile: $e');
